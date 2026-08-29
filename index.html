@@ -224,6 +224,32 @@
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
   .status-msg.error { background: rgba(255,92,92,0.1); color: var(--red); }
+
+  .wallet-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .wallet-modal-content {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px; width: 90%; max-width: 340px;
+  }
+  .wallet-modal-content h3 { margin: 0 0 14px; font-size: 16px; }
+  .wallet-option {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    color: var(--text); padding: 12px 14px; border-radius: 12px;
+    margin-bottom: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+  }
+  .wallet-option:hover { border-color: var(--blue); }
+  .wallet-option img { width: 24px; height: 24px; border-radius: 6px; }
+  .wallet-modal-close {
+    width: 100%; background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); padding: 10px; border-radius: 10px;
+    cursor: pointer; margin-top: 4px;
+  }
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -310,6 +336,14 @@
   </section>
 </div>
 
+<div id="walletModal" class="wallet-modal hidden">
+  <div class="wallet-modal-content">
+    <h3>Wallet wählen</h3>
+    <div id="walletList"></div>
+    <button id="closeWalletModal" class="wallet-modal-close">Abbrechen</button>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIG — Adressen hier eintragen, sobald jeder Contract deployed ist
@@ -346,17 +380,77 @@ let provider, signer, userAddress;
 let gmContract, messagesContract, usdcContract;
 let countdownInterval;
 
+// ---------- EIP-6963 Multi-Wallet Discovery ----------
+const discoveredProviders = new Map();
+window.addEventListener("eip6963:announceProvider", (event) => {
+  const { info, provider: rawProvider } = event.detail;
+  discoveredProviders.set(info.uuid, { info, provider: rawProvider });
+});
+window.dispatchEvent(new Event("eip6963:requestProvider"));
+
 // ---------- Wallet Connect ----------
 const connectBtn = document.getElementById("connectBtn");
-connectBtn.addEventListener("click", connectWallet);
+const walletModal = document.getElementById("walletModal");
+const walletList = document.getElementById("walletList");
+document.getElementById("closeWalletModal").addEventListener("click", () => {
+  walletModal.classList.add("hidden");
+});
+connectBtn.addEventListener("click", openWalletPicker);
 
-async function connectWallet() {
-  if (!window.ethereum) {
+function openWalletPicker() {
+  if (userAddress) return;
+
+  const eip6963 = Array.from(discoveredProviders.values());
+  const legacy = window.ethereum?.providers?.length
+    ? window.ethereum.providers
+    : (window.ethereum ? [window.ethereum] : []);
+
+  if (eip6963.length === 0 && legacy.length <= 1) {
+    connectWithProvider(window.ethereum);
+    return;
+  }
+
+  walletList.innerHTML = "";
+
+  eip6963.forEach(({ info, provider: rawProvider }) => {
+    const btn = document.createElement("button");
+    btn.className = "wallet-option";
+    btn.innerHTML = `<img src="${info.icon}" alt=""> ${info.name}`;
+    btn.addEventListener("click", () => {
+      walletModal.classList.add("hidden");
+      connectWithProvider(rawProvider);
+    });
+    walletList.appendChild(btn);
+  });
+
+  legacy.forEach((p, i) => {
+    if (![...discoveredProviders.values()].some(d => d.provider === p)) {
+      const btn = document.createElement("button");
+      btn.className = "wallet-option";
+      btn.textContent = p.isMetaMask ? "MetaMask" : p.isCoinbaseWallet ? "Coinbase Wallet" : `Wallet ${i + 1}`;
+      btn.addEventListener("click", () => {
+        walletModal.classList.add("hidden");
+        connectWithProvider(p);
+      });
+      walletList.appendChild(btn);
+    }
+  });
+
+  if (walletList.children.length === 0) {
+    alert("No wallet found. Please install MetaMask, Coinbase Wallet, or another Web3 wallet.");
+    return;
+  }
+
+  walletModal.classList.remove("hidden");
+}
+
+async function connectWithProvider(rawProvider) {
+  if (!rawProvider) {
     alert("No wallet found. Please install MetaMask or Coinbase Wallet.");
     return;
   }
   try {
-    provider = new ethers.BrowserProvider(window.ethereum);
+    provider = new ethers.BrowserProvider(rawProvider);
     await provider.send("eth_requestAccounts", []);
     signer = await provider.getSigner();
     userAddress = await signer.getAddress();
@@ -364,7 +458,7 @@ async function connectWallet() {
     const network = await provider.getNetwork();
     if (network.chainId !== CONFIG.chainId) {
       try {
-        await window.ethereum.request({
+        await rawProvider.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: "0x" + CONFIG.chainId.toString(16) }]
         });
@@ -372,7 +466,7 @@ async function connectWallet() {
         console.error("Chain switch error:", switchError);
         if (switchError.code === 4902) {
           try {
-            await window.ethereum.request({
+            await rawProvider.request({
               method: "wallet_addEthereumChain",
               params: [{
                 chainId: "0x" + CONFIG.chainId.toString(16),
