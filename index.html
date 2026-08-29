@@ -315,8 +315,8 @@
 // CONFIG — Adressen hier eintragen, sobald jeder Contract deployed ist
 // ============================================================
 const CONFIG = {
-  chainId: 84532n, // Base Sepolia (Testnet). Für Mainnet: 8453n
-  rpcUrl: "https://sepolia.base.org",
+  chainId: 8453n, // Base Mainnet
+  rpcUrl: "https://mainnet.base.org",
   contracts: {
     gmStreak: "0xea35fa5803EEAcc6195D32078a001834fe790c9A", // ✅ deployed
     onchainMessages: "", // ⏳ noch nicht deployed
@@ -369,8 +369,28 @@ async function connectWallet() {
           params: [{ chainId: "0x" + CONFIG.chainId.toString(16) }]
         });
       } catch (switchError) {
-        alert("Please switch to the correct network manually.");
-        return;
+        console.error("Chain switch error:", switchError);
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: "0x" + CONFIG.chainId.toString(16),
+                chainName: "Base",
+                rpcUrls: [CONFIG.rpcUrl],
+                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                blockExplorerUrls: ["https://basescan.org"]
+              }]
+            });
+          } catch (addError) {
+            console.error("Add chain error:", addError);
+            showStatus("gmStatus", "Netzwerk konnte nicht hinzugefügt werden.", "error");
+            return;
+          }
+        } else {
+          showStatus("gmStatus", "Bitte manuell zu Base wechseln.", "error");
+          return;
+        }
       }
     }
 
@@ -386,8 +406,8 @@ async function connectWallet() {
     document.getElementById("postMsgBtn").textContent = "Post (0.001 USDC)";
     document.getElementById("swapBtn").textContent = "Swap";
   } catch (err) {
-    console.error(err);
-    showStatus("gmStatus", "Connection failed.", "error");
+    console.error("connectWallet error:", err);
+    showStatus("gmStatus", "Connection failed: " + (err.message || "unknown"), "error");
   }
 }
 
