@@ -380,10 +380,19 @@ let provider, signer, userAddress;
 let gmContract, messagesContract, usdcContract;
 let countdownInterval;
 
+// ---------- Debug: fängt auch stille Fehler ab ----------
+window.addEventListener("error", (e) => {
+  console.error("🔴 GLOBAL ERROR:", e.message, e.filename, e.lineno);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("🔴 UNHANDLED PROMISE REJECTION:", e.reason);
+});
+
 // ---------- EIP-6963 Multi-Wallet Discovery ----------
 const discoveredProviders = new Map();
 window.addEventListener("eip6963:announceProvider", (event) => {
   const { info, provider: rawProvider } = event.detail;
+  console.log("✅ eip6963 provider announced:", info.name, info.uuid);
   discoveredProviders.set(info.uuid, { info, provider: rawProvider });
 });
 window.dispatchEvent(new Event("eip6963:requestProvider"));
@@ -395,7 +404,10 @@ const walletList = document.getElementById("walletList");
 document.getElementById("closeWalletModal").addEventListener("click", () => {
   walletModal.classList.add("hidden");
 });
-connectBtn.addEventListener("click", openWalletPicker);
+connectBtn.addEventListener("click", () => {
+  console.log("👉 Connect Wallet geklickt");
+  openWalletPicker();
+});
 
 function openWalletPicker() {
   if (userAddress) return;
@@ -405,7 +417,10 @@ function openWalletPicker() {
     ? window.ethereum.providers
     : (window.ethereum ? [window.ethereum] : []);
 
+  console.log("👉 openWalletPicker: eip6963 gefunden =", eip6963.length, ", legacy gefunden =", legacy.length);
+
   if (eip6963.length === 0 && legacy.length <= 1) {
+    console.log("👉 Nur 1 Wallet gefunden, verbinde direkt mit window.ethereum");
     connectWithProvider(window.ethereum);
     return;
   }
@@ -417,6 +432,7 @@ function openWalletPicker() {
     btn.className = "wallet-option";
     btn.innerHTML = `<img src="${info.icon}" alt=""> ${info.name}`;
     btn.addEventListener("click", () => {
+      console.log("👉 Wallet-Option geklickt (eip6963):", info.name);
       walletModal.classList.add("hidden");
       connectWithProvider(rawProvider);
     });
@@ -427,8 +443,10 @@ function openWalletPicker() {
     if (![...discoveredProviders.values()].some(d => d.provider === p)) {
       const btn = document.createElement("button");
       btn.className = "wallet-option";
-      btn.textContent = p.isMetaMask ? "MetaMask" : p.isCoinbaseWallet ? "Coinbase Wallet" : `Wallet ${i + 1}`;
+      const label = p.isMetaMask ? "MetaMask" : p.isCoinbaseWallet ? "Coinbase Wallet" : `Wallet ${i + 1}`;
+      btn.textContent = label;
       btn.addEventListener("click", () => {
+        console.log("👉 Wallet-Option geklickt (legacy):", label);
         walletModal.classList.add("hidden");
         connectWithProvider(p);
       });
@@ -445,17 +463,24 @@ function openWalletPicker() {
 }
 
 async function connectWithProvider(rawProvider) {
+  console.log("👉 connectWithProvider aufgerufen mit:", rawProvider);
   if (!rawProvider) {
+    console.log("🔴 rawProvider ist leer/undefined!");
     alert("No wallet found. Please install MetaMask or Coinbase Wallet.");
     return;
   }
   try {
+    console.log("👉 Erstelle ethers.BrowserProvider...");
     provider = new ethers.BrowserProvider(rawProvider);
+    console.log("👉 Rufe eth_requestAccounts auf (Wallet-Popup sollte jetzt kommen)...");
     await provider.send("eth_requestAccounts", []);
+    console.log("✅ eth_requestAccounts erfolgreich");
     signer = await provider.getSigner();
     userAddress = await signer.getAddress();
+    console.log("✅ Adresse erhalten:", userAddress);
 
     const network = await provider.getNetwork();
+    console.log("👉 Aktuelles Netzwerk chainId:", network.chainId, "erwartet:", CONFIG.chainId);
     if (network.chainId !== CONFIG.chainId) {
       try {
         await rawProvider.request({
@@ -500,7 +525,7 @@ async function connectWithProvider(rawProvider) {
     document.getElementById("postMsgBtn").textContent = "Post (0.001 USDC)";
     document.getElementById("swapBtn").textContent = "Swap";
   } catch (err) {
-    console.error("connectWallet error:", err);
+    console.error("🔴 connectWithProvider FEHLER:", err);
     showStatus("gmStatus", "Connection failed: " + (err.message || "unknown"), "error");
   }
 }
