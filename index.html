@@ -470,13 +470,17 @@ async function connectWithProvider(rawProvider) {
     return;
   }
   try {
+    console.log("👉 Rufe eth_requestAccounts direkt über rawProvider auf (Wallet-Popup sollte jetzt kommen)...");
+    const accounts = await rawProvider.request({ method: "eth_requestAccounts" });
+    console.log("✅ Accounts erhalten:", accounts);
+    if (!accounts || accounts.length === 0) {
+      throw new Error("Keine Accounts zurückgegeben");
+    }
+
     console.log("👉 Erstelle ethers.BrowserProvider...");
     provider = new ethers.BrowserProvider(rawProvider);
-    console.log("👉 Rufe eth_requestAccounts auf (Wallet-Popup sollte jetzt kommen)...");
-    await provider.send("eth_requestAccounts", []);
-    console.log("✅ eth_requestAccounts erfolgreich");
     signer = await provider.getSigner();
-    userAddress = await signer.getAddress();
+    userAddress = accounts[0];
     console.log("✅ Adresse erhalten:", userAddress);
 
     const network = await provider.getNetwork();
