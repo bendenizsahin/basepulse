@@ -363,8 +363,10 @@ connectBtn.addEventListener("click", connectWallet);
     console.log('AFTER SEND');
     signer = await provider.getSigner();
     userAddress = await signer.getAddress();
+    console.log('SIGNER OK', userAddress);
 
     const network = await provider.getNetwork();
+    console.log('NETWORK', network.chainId, 'EXPECTED', CONFIG.chainId);
     if (network.chainId !== CONFIG.chainId) {
       try {
         await window.ethereum.request({
