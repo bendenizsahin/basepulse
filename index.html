@@ -356,13 +356,18 @@ connectBtn.addEventListener("click", connectWallet);
     alert("No wallet found. Please install MetaMask or Coinbase Wallet.");
     return;
   }
+  let injected = window.ethereum;
+  if (window.ethereum?.providers?.length) {
+    injected = window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum.providers[0];
+  }
   try {
     console.log('BEFORE PROVIDER');
-    provider = new ethers.BrowserProvider(window.ethereum);
+    provider = new ethers.BrowserProvider(injected);
     console.log('BEFORE SEND');
-    console.log('AFTER SEND');
-    signer = await provider.getSigner();
-    userAddress = await signer.getAddress();
+    const accounts = await injected.request({ method: "eth_requestAccounts" });
+    console.log('AFTER SEND', accounts);
+    userAddress = accounts[0];
+    signer = await provider.getSigner(userAddress);
     console.log('SIGNER OK', userAddress);
 
     const network = await provider.getNetwork();
