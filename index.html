@@ -360,7 +360,6 @@ connectBtn.addEventListener("click", connectWallet);
     console.log('BEFORE PROVIDER');
     provider = new ethers.BrowserProvider(window.ethereum);
     console.log('BEFORE SEND');
-    await provider.send("eth_requestAccounts", []);
     console.log('AFTER SEND');
     signer = await provider.getSigner();
     userAddress = await signer.getAddress();
