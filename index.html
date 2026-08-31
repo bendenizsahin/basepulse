@@ -352,6 +352,9 @@ connectBtn.addEventListener("click", connectWallet);
 
 async function connectWallet() {
   if (!window.ethereum) {
+  async function connectWallet() {
+  console.log('CLICK');
+  if (!window.ethereum) {
     alert("No wallet found. Please install MetaMask or Coinbase Wallet.");
     return;
   }
