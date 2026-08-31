@@ -357,9 +357,12 @@ connectBtn.addEventListener("click", connectWallet);
     return;
   }
   try {
+    console.log('BEFORE PROVIDER');
     provider = new ethers.BrowserProvider(window.ethereum);
     await window.ethereum.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] }).catch(() => {});
+    console.log('BEFORE SEND');
     await provider.send("eth_requestAccounts", []);
+    console.log('AFTER SEND');
     signer = await provider.getSigner();
     userAddress = await signer.getAddress();
 
