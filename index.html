@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Basepulse Pro</title>
+<title>Morebase Pro & Studio</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <style>
   :root {
@@ -161,13 +161,18 @@
     text-shadow: 0 0 10px rgba(76, 139, 255, 0.5);
     transition: transform 0.05s ease-in-out;
   }
-  .bingo-number.rolling {
-    animation: bounce 0.1s infinite alternate;
+
+  .guide-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 10px;
   }
-  @keyframes bounce {
-    0% { transform: translateY(-4px); }
-    100% { transform: translateY(4px); }
-  }
+  .guide-box a { color: var(--blue-light); text-decoration: none; font-weight: 600; }
+  .guide-box a:hover { text-decoration: underline; }
 
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
@@ -179,7 +184,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><span class="dot"></span>Basepulse Pro</div>
+    <div class="logo"><span class="dot"></span>Morebase Pro</div>
     <button id="connectBtn">Connect Wallet</button>
   </header>
 
@@ -187,6 +192,7 @@
     <div class="tab active" data-tab="gm">GM Streak</div>
     <div class="tab" data-tab="messages">Messages</div>
     <div class="tab" data-tab="game">Lucky Game</div>
+    <div class="tab" data-tab="deploy">Deploy & Mint</div>
   </div>
 
   <!-- GM STREAK -->
@@ -205,7 +211,7 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via smart contract.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -216,42 +222,71 @@
   <!-- LUCKY GAME -->
   <section id="tab-game" class="hidden">
     <div class="card">
-      <h2>Base Lucky Guess (1-10)</h2>
+      <h2>Morebase Lucky Guess (1-10)</h2>
       <div class="bingo-display">
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via smart contract.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
       <div id="gameStatus"></div>
     </div>
   </section>
+
+  <!-- DEPLOY & MINT STUDIO -->
+  <section id="tab-deploy" class="hidden">
+    <div class="card">
+      <h2>1. Mint Morebase Pass NFT</h2>
+      <p style="font-size:12px; color:var(--text-dim);">Mint your official Morebase Pass directly on Base Mainnet.</p>
+      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.0001 ETH)</span></button>
+      <div id="mintStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Deploy Micro-Contract</h2>
+      <p style="font-size:12px; color:var(--text-dim);">Deploy your own custom smart contract on Base to boost developer activity score.</p>
+      <input type="text" id="contractNameInput" placeholder="Contract Name (e.g. MyMorebaseBadge)">
+      <button class="btn-primary" id="deployUserContractBtn" disabled><span>Deploy Contract to Base</span></button>
+      <div id="deployStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>3. Create Custom NFT Guide (Pinata IPFS)</h2>
+      <div class="guide-box">
+        <b>Kendi NFT Koleksiyonunuzu Hazırlayın:</b>
+        <ol style="margin:6px 0 0 16px; padding:0;">
+          <li><a href="https://www.pinata.cloud/" target="_blank">Pinata.cloud</a> hesabına ücretsiz kaydolun.</li>
+          <li>Görselinizi IPFS'e yükleyip <b>CID</b> bağlantısını alın.</li>
+          <li>JSON metadata dosyasını oluşturup görsele bağlayın.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
-// Yeni Kontrat Adresiniz
-const CONTRACT_ADDRESS = "0x50F2eB3fB80d6671F161161Bb7820ED339E2b486"; 
+// Güncel Morebase Kontrat Adresiniz
+const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
   "function playGame(uint8 _guess) external payable returns (bool won)",
+  "function mintMorebasePass() external payable",
   "function microFee() view returns (uint256)",
-  "function streakCount(address) view returns (uint256)"
+  "function nftMintFee() view returns (uint256)"
 ];
 
 let provider, signer, userAddress, pulseContract;
-let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
-let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
-let bingoInterval = null;
+let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
+let lastCheckInDay = localStorage.getItem("morebase_last_checkin") || "";
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
   document.getElementById("streakNum").textContent = localStreak;
-  
   startUTCTimer();
 
   document.querySelectorAll(".tab").forEach(tab => {
@@ -279,14 +314,9 @@ function startUTCTimer() {
   }, 1000);
 }
 
-function getTodayUTCDate() {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
-}
-
 async function connectWallet() {
   if (!window.ethereum) {
-    alert("Please install MetaMask or Coinbase Wallet!");
+    alert("Please install MetaMask!");
     return;
   }
   try {
@@ -303,7 +333,6 @@ async function connectWallet() {
 
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
-
     pulseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
@@ -311,18 +340,11 @@ async function connectWallet() {
     cb.textContent = shortAddr;
     cb.classList.add("connected");
 
-    const today = getTodayUTCDate();
-    const checkInBtn = document.getElementById("checkInBtn");
-    if (lastCheckInDay === today) {
-      checkInBtn.disabled = true;
-      checkInBtn.querySelector("span").textContent = "Checked in today ✅";
-    } else {
-      checkInBtn.disabled = false;
-      checkInBtn.querySelector("span").textContent = "GM Check-in ☀️";
-    }
-
+    document.getElementById("checkInBtn").disabled = false;
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
+    document.getElementById("mintNftBtn").disabled = false;
+    document.getElementById("deployUserContractBtn").disabled = false;
 
   } catch (err) {
     console.error(err);
@@ -330,10 +352,48 @@ async function connectWallet() {
   }
 }
 
+// NFT MINT
+document.getElementById("mintNftBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("mintNftBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Minting Pass...</span>`;
+  try {
+    const fee = await pulseContract.nftMintFee();
+    const tx = await pulseContract.mintMorebasePass({ value: fee });
+    await tx.wait();
+    showStatus("mintStatus", "Morebase Pass NFT Minted Successfully! 🎨", "success");
+  } catch (err) {
+    showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>Mint Morebase Pass (0.0001 ETH)</span>`;
+  }
+});
+
+// KULLANICININ KENDİ KONTRATINI DEPLOY ETMESİ
+document.getElementById("deployUserContractBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("deployUserContractBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Deploying Contract...</span>`;
+
+  try {
+    const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const factory = new ethers.ContractFactory([], bytecode, signer);
+    const contract = await factory.deploy();
+    await contract.waitForDeployment();
+    
+    const deployedAddress = await contract.getAddress();
+    showStatus("deployStatus", `Contract Deployed! Address: ${deployedAddress.slice(0,10)}...`, "success");
+  } catch (err) {
+    showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>Deploy Contract to Base</span>`;
+  }
+});
+
 // GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
-  const today = getTodayUTCDate();
-  if (lastCheckInDay === today) return;
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
@@ -341,18 +401,15 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     const fee = await pulseContract.microFee();
     const tx = await pulseContract.checkIn({ value: fee });
     await tx.wait();
-
     localStreak += 1;
-    lastCheckInDay = today;
-    localStorage.setItem("base_streak", localStreak);
-    localStorage.setItem("base_last_checkin", today);
+    localStorage.setItem("morebase_streak", localStreak);
     document.getElementById("streakNum").textContent = localStreak;
-    btn.innerHTML = `<span>Checked in today ✅</span>`;
     showStatus("gmStatus", "GM Checked-in on contract successfully! 🎉", "success");
   } catch (err) {
+    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
+  } finally {
     btn.disabled = false;
     btn.innerHTML = `<span>GM Check-in ☀️</span>`;
-    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
   }
 });
 
@@ -360,7 +417,6 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
-  
   const btn = document.getElementById("postMsgBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Approval...</span>`;
@@ -369,7 +425,6 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
     const fee = await pulseContract.microFee();
     const tx = await pulseContract.postMessage(msg, { value: fee });
     btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
-    
     await tx.wait();
     document.getElementById("msgInput").value = "";
     showStatus("msgStatus", "Message recorded on smart contract! 🚀", "success");
@@ -385,27 +440,22 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
-
   const btn = document.getElementById("playGameBtn");
   const bingoEl = document.getElementById("bingoNum");
 
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Executing Contract...</span>`;
   
-  bingoEl.classList.add("rolling");
-  bingoInterval = setInterval(() => {
+  const bingoInterval = setInterval(() => {
     bingoEl.textContent = Math.floor(Math.random() * 10) + 1;
   }, 60);
 
   try {
     const fee = await pulseContract.microFee();
     const tx = await pulseContract.playGame(num, { value: fee });
-    btn.innerHTML = `<span class="spinner"></span> <span>Waiting Block...</span>`;
     await tx.wait();
 
     clearInterval(bingoInterval);
-    bingoEl.classList.remove("rolling");
-
     const winningNumber = Math.floor(Math.random() * 10) + 1;
     bingoEl.textContent = winningNumber;
 
@@ -416,7 +466,6 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
     }
   } catch (err) {
     clearInterval(bingoInterval);
-    bingoEl.classList.remove("rolling");
     bingoEl.textContent = "?";
     showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
