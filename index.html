@@ -125,16 +125,47 @@
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
+  /* Professional Swap Styles */
   .swap-box {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 14px;
     margin-bottom: 10px;
   }
+  .swap-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
   .swap-row { display: flex; gap: 10px; align-items: center; }
-  .swap-row input { margin-bottom: 0; }
-  .swap-row select { width: 110px; margin-bottom: 0; background: var(--card); }
+  .swap-row input { margin-bottom: 0; font-size: 18px; font-weight: 700; }
+  .swap-row select { width: 130px; margin-bottom: 0; background: var(--card); font-weight: 600; }
+
+  .pct-btns {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .pct-btn {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pct-btn:hover { background: var(--blue); color: white; border-color: var(--blue); }
+
+  .custom-token-input {
+    margin-top: 8px;
+    font-size: 12px;
+  }
 
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
@@ -180,28 +211,54 @@
     </div>
   </section>
 
-  <!-- IN-APP SWAP -->
+  <!-- PROFESSIONAL SWAP -->
   <section id="tab-swap" class="hidden">
     <div class="card">
       <h2>In-App Token Swap</h2>
+      
+      <!-- YOU PAY -->
       <div class="swap-box">
-        <div style="font-size:11px; color:var(--text-dim); margin-bottom:4px;">You Pay</div>
+        <div class="swap-header">
+          <span>You Pay</span>
+          <span>Balance: <strong id="userEthBalance" style="color:var(--text)">0.0000</strong> ETH</span>
+        </div>
         <div class="swap-row">
           <input type="number" id="swapAmountIn" placeholder="0.0">
-          <select id="tokenIn"><option value="ETH">ETH</option></select>
+          <select id="tokenIn">
+            <option value="ETH">ETH</option>
+          </select>
+        </div>
+        <div class="pct-btns">
+          <button class="pct-btn" onclick="setSwapPercent(0.25)">25%</button>
+          <button class="pct-btn" onclick="setSwapPercent(0.50)">50%</button>
+          <button class="pct-btn" onclick="setSwapPercent(0.75)">75%</button>
+          <button class="pct-btn" onclick="setSwapPercent(0.98)">100%</button>
         </div>
       </div>
-      <div style="text-align:center; color:var(--text-dim); margin: -4px 0 6px;">↓</div>
+
+      <div style="text-align:center; color:var(--text-dim); margin: -2px 0 8px;">↓</div>
+
+      <!-- YOU RECEIVE -->
       <div class="swap-box">
-        <div style="font-size:11px; color:var(--text-dim); margin-bottom:4px;">You Receive (Estimated)</div>
+        <div class="swap-header">
+          <span>You Receive (Estimated)</span>
+        </div>
         <div class="swap-row">
           <input type="number" id="swapAmountOut" placeholder="0.0" readonly>
           <select id="tokenOut">
             <option value="USDC">USDC</option>
             <option value="AERO">AERO</option>
+            <option value="DEGEN">DEGEN</option>
+            <option value="BRETT">BRETT</option>
+            <option value="DAI">DAI</option>
+            <option value="CUSTOM">+ Custom Address</option>
           </select>
         </div>
+        <div id="customTokenWrapper" class="hidden">
+          <input type="text" id="customContractInput" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
+        </div>
       </div>
+
       <button class="btn-primary" id="swapBtn" disabled>Execute Swap</button>
       <div id="swapStatus"></div>
     </div>
@@ -231,14 +288,22 @@
 </div>
 
 <script>
-// Güncellenmiş Cüzdan Adresiniz
 const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
-const MICRO_FEE_ETH = "0.00000004"; // Yaklaşık $0.0001
+const MICRO_FEE_ETH = "0.00000004"; // ~$0.0001
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet
 
 let provider, signer, userAddress;
+let userBalanceEth = 0;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
+
+const TOKEN_RATES = {
+  USDC: 2600,
+  AERO: 1800,
+  DEGEN: 150000,
+  BRETT: 28000,
+  DAI: 2600
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -246,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   startUTCTimer();
 
-  // Tab Yönetimi
+  // Tab Navigation
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -256,16 +321,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Swap Simülasyon Hesabı
-  document.getElementById("swapAmountIn").addEventListener("input", (e) => {
-    const val = parseFloat(e.target.value) || 0;
-    const token = document.getElementById("tokenOut").value;
-    const rate = token === "USDC" ? 2600 : 1800;
-    document.getElementById("swapAmountOut").value = (val * rate).toFixed(4);
+  // Custom Contract Toggle
+  document.getElementById("tokenOut").addEventListener("change", (e) => {
+    const wrapper = document.getElementById("customTokenWrapper");
+    if (e.target.value === "CUSTOM") {
+      wrapper.classList.remove("hidden");
+    } else {
+      wrapper.classList.add("hidden");
+    }
+    calculateSwap();
   });
+
+  document.getElementById("swapAmountIn").addEventListener("input", calculateSwap);
 });
 
-// UTC 00:00 Geri Sayım Zamanlayıcısı
+function calculateSwap() {
+  const val = parseFloat(document.getElementById("swapAmountIn").value) || 0;
+  const token = document.getElementById("tokenOut").value;
+  let rate = TOKEN_RATES[token] || 2000;
+  document.getElementById("swapAmountOut").value = (val * rate).toFixed(4);
+}
+
+function setSwapPercent(pct) {
+  if (!userBalanceEth) return;
+  const amount = (userBalanceEth * pct).toFixed(5);
+  document.getElementById("swapAmountIn").value = amount;
+  calculateSwap();
+}
+
 function startUTCTimer() {
   setInterval(() => {
     const now = new Date();
@@ -306,12 +389,16 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
+    // Fetch Balance
+    const balanceWei = await provider.getBalance(userAddress);
+    userBalanceEth = parseFloat(ethers.formatEther(balanceWei));
+    document.getElementById("userEthBalance").textContent = userBalanceEth.toFixed(4);
+
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
     cb.textContent = shortAddr;
     cb.classList.add("connected");
 
-    // GM Buton Durumu Kontrolü
     const today = getTodayUTCDate();
     const checkInBtn = document.getElementById("checkInBtn");
     if (lastCheckInDay === today) {
@@ -333,17 +420,14 @@ async function connectWallet() {
   }
 }
 
-// 1. GM CHECK-IN (Günde 1 Defa)
+// GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
-  if (lastCheckInDay === today) {
-    showStatus("gmStatus", "You already checked in today! Come back after 00:00 UTC.", "error");
-    return;
-  }
+  if (lastCheckInDay === today) return;
 
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
-  btn.textContent = "Processing onchain...";
+  btn.textContent = "Processing...";
 
   try {
     const tx = await signer.sendTransaction({
@@ -367,10 +451,10 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
-// 2. MESSAGES
+// MESSAGES
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
-  if (!msg) { showStatus("msgStatus", "Enter a message.", "error"); return; }
+  if (!msg) return;
   
   try {
     const tx = await signer.sendTransaction({
@@ -385,12 +469,21 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// 3. IN-APP SWAP
+// SWAP EXECUTION
 document.getElementById("swapBtn").addEventListener("click", async () => {
   const amount = document.getElementById("swapAmountIn").value;
   if (!amount || amount <= 0) {
     showStatus("swapStatus", "Please enter valid swap amount.", "error");
     return;
+  }
+
+  const tokenOut = document.getElementById("tokenOut").value;
+  if (tokenOut === "CUSTOM") {
+    const contractAddr = document.getElementById("customContractInput").value;
+    if (!contractAddr || !ethers.isAddress(contractAddr)) {
+      showStatus("swapStatus", "Invalid custom token address.", "error");
+      return;
+    }
   }
 
   const btn = document.getElementById("swapBtn");
@@ -403,7 +496,7 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
       value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
-    showStatus("swapStatus", "Swap transaction completed successfully! 🔄", "success");
+    showStatus("swapStatus", "Swap executed successfully! 🔄", "success");
   } catch (err) {
     showStatus("swapStatus", "Swap transaction rejected.", "error");
   } finally {
@@ -412,10 +505,10 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   }
 });
 
-// 4. LUCKY GAME
+// LUCKY GAME
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
-  if(!num) { showStatus("gameStatus", "Enter a number between 1-10", "error"); return; }
+  if(!num) return;
 
   try {
     const tx = await signer.sendTransaction({
@@ -435,14 +528,14 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   }
 });
 
-// 5. DEPLOY CONTRACT
+// DEPLOYER
 document.getElementById("deployBtn").addEventListener("click", async () => {
   const name = document.getElementById("contractName").value || "BaseToken";
   const symbol = document.getElementById("contractSymbol").value || "BS";
   
   const btn = document.getElementById("deployBtn");
   btn.disabled = true;
-  btn.textContent = "Deploying Contract...";
+  btn.textContent = "Deploying...";
 
   try {
     const tx = await signer.sendTransaction({
@@ -450,7 +543,7 @@ document.getElementById("deployBtn").addEventListener("click", async () => {
       value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
-    showStatus("deployStatus", `Contract '${name}' (${symbol}) deployed successfully!`, "success");
+    showStatus("deployStatus", `Contract '${name}' (${symbol}) deployed!`, "success");
   } catch (err) {
     showStatus("deployStatus", "Deployment failed.", "error");
   } finally {
