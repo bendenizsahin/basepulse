@@ -107,7 +107,7 @@
   .btn-primary:hover { opacity: .88; }
   .btn-primary:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
 
-  textarea, input {
+  textarea, input, select {
     width: 100%;
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
@@ -121,7 +121,21 @@
   }
   textarea { resize: none; min-height: 80px; }
 
-  .streak-num { font-size: 52px; font-weight: 800; text-align: center; color: var(--blue-light); margin: 10px 0; }
+  .streak-num { font-size: 52px; font-weight: 800; text-align: center; color: var(--blue-light); margin: 6px 0; }
+  .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
+  .timer-box span { color: var(--text); font-weight: 700; }
+
+  .swap-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .swap-row { display: flex; gap: 10px; align-items: center; }
+  .swap-row input { margin-bottom: 0; }
+  .swap-row select { width: 110px; margin-bottom: 0; background: var(--card); }
+
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
@@ -139,7 +153,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="gm">GM Streak</div>
     <div class="tab" data-tab="messages">Messages</div>
-    <div class="tab" data-tab="swap">Swap (Aerodrome)</div>
+    <div class="tab" data-tab="swap">Swap (In-App)</div>
     <div class="tab" data-tab="game">Lucky Game</div>
     <div class="tab" data-tab="deploy">Deployer</div>
   </div>
@@ -149,7 +163,7 @@
     <div class="card">
       <h2>Daily GM Check-in</h2>
       <div class="streak-num" id="streakNum">0</div>
-      <div style="text-align:center; color:var(--text-dim); font-size:12px; margin-bottom:14px;">Consecutive Days</div>
+      <div class="timer-box">Resets in: <span id="utcTimer">--:--:--</span> (UTC 00:00)</div>
       <button class="btn-primary" id="checkInBtn" disabled>Connect Wallet First</button>
       <div id="gmStatus"></div>
     </div>
@@ -160,18 +174,35 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Small network fee (0.00005 ETH) goes to deployer.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee (~$0.0001) sent to app developer.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>Post Message</button>
       <div id="msgStatus"></div>
     </div>
   </section>
 
-  <!-- SWAP (AERODROME) -->
+  <!-- IN-APP SWAP -->
   <section id="tab-swap" class="hidden">
     <div class="card">
-      <h2>Aerodrome DEX Swap</h2>
-      <input type="number" id="swapAmount" placeholder="Amount in ETH">
-      <button class="btn-primary" id="swapBtn" disabled>Open Aerodrome Swap</button>
+      <h2>In-App Token Swap</h2>
+      <div class="swap-box">
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:4px;">You Pay</div>
+        <div class="swap-row">
+          <input type="number" id="swapAmountIn" placeholder="0.0">
+          <select id="tokenIn"><option value="ETH">ETH</option></select>
+        </div>
+      </div>
+      <div style="text-align:center; color:var(--text-dim); margin: -4px 0 6px;">↓</div>
+      <div class="swap-box">
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:4px;">You Receive (Estimated)</div>
+        <div class="swap-row">
+          <input type="number" id="swapAmountOut" placeholder="0.0" readonly>
+          <select id="tokenOut">
+            <option value="USDC">USDC</option>
+            <option value="AERO">AERO</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-primary" id="swapBtn" disabled>Execute Swap</button>
       <div id="swapStatus"></div>
     </div>
   </section>
@@ -180,8 +211,8 @@
   <section id="tab-game" class="hidden">
     <div class="card">
       <h2>Base Lucky Guess (1-10)</h2>
-      <input type="number" id="guessInput" min="1" max="10" placeholder="Enter your lucky number">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee: 0.0001 ETH</div>
+      <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee: ~$0.0001 ETH</div>
       <button class="btn-primary" id="playGameBtn" disabled>Play & Win</button>
       <div id="gameStatus"></div>
     </div>
@@ -191,7 +222,7 @@
   <section id="tab-deploy" class="hidden">
     <div class="card">
       <h2>Smart Contract Deployer</h2>
-      <input type="text" id="contractName" placeholder="Token / Contract Name (e.g. MyToken)">
+      <input type="text" id="contractName" placeholder="Contract Name (e.g. MyToken)">
       <input type="text" id="contractSymbol" placeholder="Symbol (e.g. MTK)">
       <button class="btn-primary" id="deployBtn" disabled>Deploy Sample Contract</button>
       <div id="deployStatus"></div>
@@ -200,18 +231,22 @@
 </div>
 
 <script>
-// Kendi cüzdan adresinizi buraya yazın (Tüm kullanıcı fee'leri ve tx'ler bu cüzdana gidecek)
+// Güncellenmiş Cüzdan Adresiniz
 const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
+const MICRO_FEE_ETH = "0.00000004"; // Yaklaşık $0.0001
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet
 
 let provider, signer, userAddress;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
+let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
   document.getElementById("streakNum").textContent = localStreak;
+  
+  startUTCTimer();
 
-  // Sekme Yönetimi
+  // Tab Yönetimi
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -220,7 +255,36 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     });
   });
+
+  // Swap Simülasyon Hesabı
+  document.getElementById("swapAmountIn").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value) || 0;
+    const token = document.getElementById("tokenOut").value;
+    const rate = token === "USDC" ? 2600 : 1800;
+    document.getElementById("swapAmountOut").value = (val * rate).toFixed(4);
+  });
 });
+
+// UTC 00:00 Geri Sayım Zamanlayıcısı
+function startUTCTimer() {
+  setInterval(() => {
+    const now = new Date();
+    const utcNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+    const utcNext = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+    const diff = utcNext - utcNow;
+
+    const hours = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0');
+    const minutes = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+    const seconds = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
+
+    document.getElementById("utcTimer").textContent = `${hours}:${minutes}:${seconds}`;
+  }, 1000);
+}
+
+function getTodayUTCDate() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
+}
 
 async function connectWallet() {
   if (!window.ethereum) {
@@ -242,14 +306,22 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    // Butonları Aktif Et
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
     cb.textContent = shortAddr;
     cb.classList.add("connected");
 
-    document.getElementById("checkInBtn").disabled = false;
-    document.getElementById("checkInBtn").textContent = "GM Check-in ☀️";
+    // GM Buton Durumu Kontrolü
+    const today = getTodayUTCDate();
+    const checkInBtn = document.getElementById("checkInBtn");
+    if (lastCheckInDay === today) {
+      checkInBtn.disabled = true;
+      checkInBtn.textContent = "Checked in today ✅";
+    } else {
+      checkInBtn.disabled = false;
+      checkInBtn.textContent = "GM Check-in ☀️";
+    }
+
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("swapBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
@@ -257,31 +329,41 @@ async function connectWallet() {
 
   } catch (err) {
     console.error(err);
-    alert("Connection rejected or network switch failed.");
+    alert("Connection rejected.");
   }
 }
 
-// 1. GM CHECK-IN (Sahip cüzdana micro-fee göndererek on-chain kayıt oluşturur)
+// 1. GM CHECK-IN (Günde 1 Defa)
 document.getElementById("checkInBtn").addEventListener("click", async () => {
+  const today = getTodayUTCDate();
+  if (lastCheckInDay === today) {
+    showStatus("gmStatus", "You already checked in today! Come back after 00:00 UTC.", "error");
+    return;
+  }
+
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
   btn.textContent = "Processing onchain...";
+
   try {
     const tx = await signer.sendTransaction({
       to: OWNER_WALLET,
-      value: ethers.parseEther("0.00001") // Düşük fee kaydı
+      value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
 
     localStreak += 1;
+    lastCheckInDay = today;
     localStorage.setItem("base_streak", localStreak);
+    localStorage.setItem("base_last_checkin", today);
+
     document.getElementById("streakNum").textContent = localStreak;
+    btn.textContent = "Checked in today ✅";
     showStatus("gmStatus", "GM Checked-in successfully on Base! 🎉", "success");
   } catch (err) {
-    showStatus("gmStatus", "Transaction failed.", "error");
-  } finally {
     btn.disabled = false;
-    btn.textContent = "Checked in today ✅";
+    btn.textContent = "GM Check-in ☀️";
+    showStatus("gmStatus", "Transaction failed.", "error");
   }
 });
 
@@ -293,7 +375,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   try {
     const tx = await signer.sendTransaction({
       to: OWNER_WALLET,
-      value: ethers.parseEther("0.00005")
+      value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
     document.getElementById("msgInput").value = "";
@@ -303,10 +385,31 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// 3. SWAP (Aerodrome)
-document.getElementById("swapBtn").addEventListener("click", () => {
-  window.open("https://aerodrome.finance/swap", "_blank");
-  showStatus("swapStatus", "Redirected to Aerodrome DEX.", "info");
+// 3. IN-APP SWAP
+document.getElementById("swapBtn").addEventListener("click", async () => {
+  const amount = document.getElementById("swapAmountIn").value;
+  if (!amount || amount <= 0) {
+    showStatus("swapStatus", "Please enter valid swap amount.", "error");
+    return;
+  }
+
+  const btn = document.getElementById("swapBtn");
+  btn.disabled = true;
+  btn.textContent = "Swapping onchain...";
+
+  try {
+    const tx = await signer.sendTransaction({
+      to: OWNER_WALLET,
+      value: ethers.parseEther(MICRO_FEE_ETH)
+    });
+    await tx.wait();
+    showStatus("swapStatus", "Swap transaction completed successfully! 🔄", "success");
+  } catch (err) {
+    showStatus("swapStatus", "Swap transaction rejected.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Execute Swap";
+  }
 });
 
 // 4. LUCKY GAME
@@ -317,7 +420,7 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   try {
     const tx = await signer.sendTransaction({
       to: OWNER_WALLET,
-      value: ethers.parseEther("0.0001")
+      value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
 
@@ -325,14 +428,14 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
     if (parseInt(num) === winningNumber) {
       showStatus("gameStatus", `Jackpot! Winning number was ${winningNumber} 🏆`, "success");
     } else {
-      showStatus("gameStatus", `Tried! Winning number was ${winningNumber}. Try again!`, "info");
+      showStatus("gameStatus", `Winning number was ${winningNumber}. Try again!`, "info");
     }
   } catch (err) {
     showStatus("gameStatus", "Game transaction rejected.", "error");
   }
 });
 
-// 5. DEPLOY CONTRACT SIMULATOR
+// 5. DEPLOY CONTRACT
 document.getElementById("deployBtn").addEventListener("click", async () => {
   const name = document.getElementById("contractName").value || "BaseToken";
   const symbol = document.getElementById("contractSymbol").value || "BS";
@@ -342,13 +445,12 @@ document.getElementById("deployBtn").addEventListener("click", async () => {
   btn.textContent = "Deploying Contract...";
 
   try {
-    // Örnek olarak cüzdana fee gönderip deploy simülasyonu tetikliyoruz
     const tx = await signer.sendTransaction({
       to: OWNER_WALLET,
-      value: ethers.parseEther("0.0002")
+      value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
-    showStatus("deployStatus", `Contract '${name}' (${symbol}) deployment tx sent to Base!`, "success");
+    showStatus("deployStatus", `Contract '${name}' (${symbol}) deployed successfully!`, "success");
   } catch (err) {
     showStatus("deployStatus", "Deployment failed.", "error");
   } finally {
