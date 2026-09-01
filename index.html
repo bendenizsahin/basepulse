@@ -168,16 +168,6 @@
   }
   .char-count { text-align: right; font-size: 12px; color: var(--text-dim); margin: 6px 0 14px; }
   .fee-note { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
-  .message-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-  .message-item {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 14px;
-  }
-  .message-item .author { font-size: 11px; color: var(--blue-light); font-family: monospace; }
-  .message-item .text { font-size: 14px; margin-top: 4px; word-break: break-word; }
-  .message-item .time { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
 
   /* Swap */
   .swap-box {
@@ -205,14 +195,7 @@
     font-weight: 600;
     font-size: 13px;
   }
-  .swap-arrow {
-    text-align: center;
-    margin: 6px 0;
-    color: var(--text-dim);
-    font-size: 18px;
-  }
-  .swap-details { font-size: 12px; color: var(--text-dim); margin: 14px 0; display: flex; flex-direction: column; gap: 6px; }
-  .swap-details div { display: flex; justify-content: space-between; }
+  .swap-arrow { text-align: center; margin: 6px 0; color: var(--text-dim); font-size: 18px; }
 
   .status-msg {
     text-align: center;
@@ -245,16 +228,16 @@
     <div class="card">
       <h2>Your Streak</h2>
       <div class="streak-hero">
-        <div class="streak-number" id="streakNum">–</div>
+        <div class="streak-number" id="streakNum">0</div>
         <div class="streak-label">days in a row</div>
       </div>
       <div class="countdown">Resets in <span id="countdown">--:--:--</span></div>
       <div class="stats-row">
-        <div class="stat-box"><div class="val" id="bestStreak">–</div><div class="lbl">Best Streak</div></div>
-        <div class="stat-box"><div class="val" id="totalCheckins">–</div><div class="lbl">Total Check-ins</div></div>
+        <div class="stat-box"><div class="val" id="bestStreak">0</div><div class="lbl">Best Streak</div></div>
+        <div class="stat-box"><div class="val" id="totalCheckins">0</div><div class="lbl">Total Check-ins</div></div>
       </div>
       <button class="btn-primary" id="checkInBtn" disabled>Connect wallet first</button>
-      <div class="badges-row" id="badgesRow">
+      <div class="badges-row">
         <div class="badge" data-days="7"><div class="emoji">🥉</div><div class="days">7 days</div></div>
         <div class="badge" data-days="30"><div class="emoji">🥈</div><div class="days">30 days</div></div>
         <div class="badge" data-days="100"><div class="emoji">🥇</div><div class="days">100 days</div></div>
@@ -270,10 +253,9 @@
       <h2>Post a message</h2>
       <textarea id="msgInput" maxlength="280" placeholder="What's happening onchain?"></textarea>
       <div class="char-count"><span id="charCount">0</span>/280</div>
-      <div class="fee-note">Fee: 0.001 USDC per message</div>
+      <div class="fee-note">Fee: 0.001 ETH</div>
       <button class="btn-primary" id="postMsgBtn" disabled>Connect wallet first</button>
       <div id="msgStatus"></div>
-      <div class="message-list" id="messageList"></div>
     </div>
   </section>
 
@@ -284,26 +266,17 @@
       <div class="swap-box">
         <div class="swap-row">
           <input type="number" id="swapAmountIn" placeholder="0.0">
-          <select class="token-select" id="tokenIn">
-            <option value="ETH">ETH</option>
-            <option value="USDC">USDC</option>
-          </select>
+          <select class="token-select"><option value="ETH">ETH</option></select>
         </div>
       </div>
       <div class="swap-arrow">↓</div>
       <div class="swap-box">
         <div class="swap-row">
           <input type="number" id="swapAmountOut" placeholder="0.0" disabled>
-          <select class="token-select" id="tokenOut">
-            <option value="USDC">USDC</option>
-            <option value="ETH">ETH</option>
-          </select>
+          <select class="token-select"><option value="USDC">USDC</option></select>
         </div>
       </div>
-      <div class="swap-details">
-        <div><span>Fee (0.1%)</span><span id="feeAmount">–</span></div>
-        <div><span>You receive</span><span id="estimatedOut">–</span></div>
-      </div>
+      <br>
       <button class="btn-primary" id="swapBtn" disabled>Connect wallet first</button>
       <div id="swapStatus"></div>
     </div>
@@ -313,16 +286,7 @@
 <script>
 const CONFIG = {
   chainIdHex: "0x2105", // Base Mainnet (8453)
-  chainName: "Base Mainnet",
-  rpcUrl: "https://mainnet.base.org",
-  blockExplorerUrl: "https://basescan.org",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  contracts: {
-    gmStreak: "0xea35fa5803EEAcc6195D32078a001834fe790c9A",
-    onchainMessages: "",
-    aerodromeSwap: "",
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-  }
+  gmStreakContract: "0xea35fa5803EEAcc6195D32078a001834fe790c9A"
 };
 
 const GM_STREAK_ABI = [
@@ -331,90 +295,66 @@ const GM_STREAK_ABI = [
   "function getBadges(address user) view returns (bool[] owned, uint256[] milestoneDays)"
 ];
 
-let provider, signer, userAddress;
-let gmContract;
-let countdownInterval;
+let provider, signer, userAddress, gmContract;
 
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("connectBtn");
-  if (btn) btn.addEventListener("click", connectWallet);
+  document.getElementById("connectBtn").addEventListener("click", connectWallet);
+  
+  // Tab Değiştirme Mantığı
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelectorAll("section[id^='tab-']").forEach(s => s.classList.add("hidden"));
+      document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
+    });
+  });
 });
 
 async function connectWallet() {
-  showStatus("gmStatus", "Opening wallet...", "info");
-
   if (!window.ethereum) {
-    alert("MetaMask or Coinbase Wallet is required!");
-    showStatus("gmStatus", "No Web3 wallet found.", "error");
+    alert("Please install MetaMask or Coinbase Wallet!");
     return;
   }
 
   try {
-    // 1. Doğrudan hesap iste (Asılı kalmayı önler)
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     userAddress = accounts[0];
 
-    // 2. Ağ Kontrolü
-    const currentChainId = await window.ethereum.request({ method: "eth_chainId" });
-    if (currentChainId.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
-      try {
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: CONFIG.chainIdHex }]
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: CONFIG.chainIdHex,
-              chainName: CONFIG.chainName,
-              rpcUrls: [CONFIG.rpcUrl],
-              nativeCurrency: CONFIG.nativeCurrency,
-              blockExplorerUrls: [CONFIG.blockExplorerUrl]
-            }]
-          });
-        }
-      }
-    }
+    // Cüzdan bağlandıktan sonra tüm butonları aktif et
+    updateUIOnConnect();
 
-    // 3. Ethers Yapılandırması
+    // Ethers kurulumu
     if (window.ethers) {
       provider = new ethers.BrowserProvider(window.ethereum);
       signer = await provider.getSigner();
-      gmContract = new ethers.Contract(CONFIG.contracts.gmStreak, GM_STREAK_ABI, signer);
+      gmContract = new ethers.Contract(CONFIG.gmStreakContract, GM_STREAK_ABI, signer);
       refreshStreakInfo();
     }
-
-    const connectBtn = document.getElementById("connectBtn");
-    connectBtn.textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
-    connectBtn.classList.add("connected");
-
-    document.getElementById("checkInBtn").disabled = false;
-    document.getElementById("postMsgBtn").disabled = false;
-    document.getElementById("swapBtn").disabled = false;
-    document.getElementById("checkInBtn").textContent = "GM ☀️";
-    
-    showStatus("gmStatus", "Wallet Connected!", "success");
-
   } catch (err) {
-    console.error(err);
-    showStatus("gmStatus", "Error: " + (err.message || "Failed to connect"), "error");
+    console.error("Wallet connection error:", err);
   }
 }
 
-// Tabs
-document.querySelectorAll(".tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    document.querySelectorAll("section[id^='tab-']").forEach(s => s.classList.add("hidden"));
-    document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
-  });
-});
+function updateUIOnConnect() {
+  const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
+  const connectBtn = document.getElementById("connectBtn");
+  connectBtn.textContent = shortAddr;
+  connectBtn.classList.add("connected");
 
-// GM Check-in
-document.getElementById("checkInBtn").addEventListener("click", doCheckIn);
+  // Tüm Sekmelerdeki Butonları Aktifleştir
+  const gmBtn = document.getElementById("checkInBtn");
+  gmBtn.disabled = false;
+  gmBtn.textContent = "GM ☀️";
+
+  const msgBtn = document.getElementById("postMsgBtn");
+  msgBtn.disabled = false;
+  msgBtn.textContent = "Post Message";
+
+  const swapBtn = document.getElementById("swapBtn");
+  swapBtn.disabled = false;
+  swapBtn.textContent = "Swap Tokens";
+}
 
 async function refreshStreakInfo() {
   if (!gmContract || !userAddress) return;
@@ -425,72 +365,35 @@ async function refreshStreakInfo() {
     document.getElementById("totalCheckins").textContent = info.totalCheckInsCount.toString();
 
     if (info.checkedInToday) {
-      document.getElementById("checkInBtn").disabled = true;
-      document.getElementById("checkInBtn").textContent = "Already checked in today ✅";
-    } else {
-      document.getElementById("checkInBtn").disabled = false;
-      document.getElementById("checkInBtn").textContent = "GM ☀️";
+      const btn = document.getElementById("checkInBtn");
+      btn.disabled = true;
+      btn.textContent = "Checked in today ✅";
     }
-
-    startCountdown(Number(info.secondsUntilReset));
-
-    const badges = await gmContract.getBadges(userAddress);
-    document.querySelectorAll(".badge").forEach((el, i) => {
-      if (badges.owned[i]) el.classList.add("earned");
-      else el.classList.remove("earned");
-    });
   } catch (err) {
-    console.error(err);
+    // Kontrat adresi yanlışsa veya Base ağında değilse sessizce yakala
+    console.warn("Could not fetch streak info from contract:", err);
   }
 }
 
-function startCountdown(seconds) {
-  clearInterval(countdownInterval);
-  let remaining = seconds;
-  updateCountdownDisplay(remaining);
-  countdownInterval = setInterval(() => {
-    remaining -= 1;
-    if (remaining <= 0) {
-      clearInterval(countdownInterval);
-      refreshStreakInfo();
-      return;
-    }
-    updateCountdownDisplay(remaining);
-  }, 1000);
-}
-
-function updateCountdownDisplay(totalSeconds) {
-  const h = Math.floor(totalSeconds / 3600).toString().padStart(2, "0");
-  const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, "0");
-  const s = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
-  document.getElementById("countdown").textContent = `${h}:${m}:${s}`;
-}
-
-async function doCheckIn() {
+// GM Check-in İşlemi
+document.getElementById("checkInBtn").addEventListener("click", async () => {
   if (!gmContract) return;
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
   btn.textContent = "Confirming...";
+
   try {
     const tx = await gmContract.checkIn();
-    showStatus("gmStatus", "Transaction sent...", "info");
     await tx.wait();
-    showStatus("gmStatus", "Check-in successful! 🎉", "success");
+    btn.textContent = "Checked in today ✅";
     refreshStreakInfo();
   } catch (err) {
     console.error(err);
     btn.disabled = false;
     btn.textContent = "GM ☀️";
-    showStatus("gmStatus", "Transaction canceled or failed", "error");
+    alert("Check-in transaction failed!");
   }
-}
-
-function showStatus(elId, message, type) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
-  setTimeout(() => { el.innerHTML = ""; }, 5000);
-}
+});
 </script>
 </body>
 </html>
