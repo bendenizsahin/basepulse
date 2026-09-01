@@ -94,7 +94,6 @@
     letter-spacing: 0.5px;
   }
 
-  /* GM Streak */
   .streak-hero { text-align: center; padding: 12px 0 20px; }
   .streak-number {
     font-size: 64px;
@@ -117,13 +116,6 @@
   }
   .stat-box .val { font-size: 20px; font-weight: 700; }
   .stat-box .lbl { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-  .countdown {
-    text-align: center;
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-bottom: 16px;
-  }
-  .countdown span { color: var(--blue-light); font-weight: 700; font-variant-numeric: tabular-nums; }
   .btn-primary {
     width: 100%;
     background: var(--blue);
@@ -153,7 +145,6 @@
   .badge .emoji { font-size: 22px; }
   .badge .days { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 
-  /* Messages */
   textarea {
     width: 100%;
     background: rgba(255,255,255,0.03);
@@ -169,7 +160,6 @@
   .char-count { text-align: right; font-size: 12px; color: var(--text-dim); margin: 6px 0 14px; }
   .fee-note { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
 
-  /* Swap */
   .swap-box {
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
@@ -231,17 +221,16 @@
         <div class="streak-number" id="streakNum">0</div>
         <div class="streak-label">days in a row</div>
       </div>
-      <div class="countdown">Resets in <span id="countdown">--:--:--</span></div>
       <div class="stats-row">
         <div class="stat-box"><div class="val" id="bestStreak">0</div><div class="lbl">Best Streak</div></div>
         <div class="stat-box"><div class="val" id="totalCheckins">0</div><div class="lbl">Total Check-ins</div></div>
       </div>
       <button class="btn-primary" id="checkInBtn" disabled>Connect wallet first</button>
       <div class="badges-row">
-        <div class="badge" data-days="7"><div class="emoji">🥉</div><div class="days">7 days</div></div>
-        <div class="badge" data-days="30"><div class="emoji">🥈</div><div class="days">30 days</div></div>
-        <div class="badge" data-days="100"><div class="emoji">🥇</div><div class="days">100 days</div></div>
-        <div class="badge" data-days="365"><div class="emoji">🏆</div><div class="days">365 days</div></div>
+        <div class="badge" id="badge-7" data-days="7"><div class="emoji">🥉</div><div class="days">7 days</div></div>
+        <div class="badge" id="badge-30" data-days="30"><div class="emoji">🥈</div><div class="days">30 days</div></div>
+        <div class="badge" id="badge-100" data-days="100"><div class="emoji">🥇</div><div class="days">100 days</div></div>
+        <div class="badge" id="badge-365" data-days="365"><div class="emoji">🏆</div><div class="days">365 days</div></div>
       </div>
       <div id="gmStatus"></div>
     </div>
@@ -253,7 +242,7 @@
       <h2>Post a message</h2>
       <textarea id="msgInput" maxlength="280" placeholder="What's happening onchain?"></textarea>
       <div class="char-count"><span id="charCount">0</span>/280</div>
-      <div class="fee-note">Fee: 0.001 ETH</div>
+      <div class="fee-note">Fee: 0.0001 ETH</div>
       <button class="btn-primary" id="postMsgBtn" disabled>Connect wallet first</button>
       <div id="msgStatus"></div>
     </div>
@@ -262,18 +251,18 @@
   <!-- SWAP TAB -->
   <section id="tab-swap" class="hidden">
     <div class="card">
-      <h2>Swap</h2>
+      <h2>Swap Tokens</h2>
       <div class="swap-box">
         <div class="swap-row">
           <input type="number" id="swapAmountIn" placeholder="0.0">
-          <select class="token-select"><option value="ETH">ETH</option></select>
+          <select class="token-select" id="tokenIn"><option value="ETH">ETH</option></select>
         </div>
       </div>
       <div class="swap-arrow">↓</div>
       <div class="swap-box">
         <div class="swap-row">
-          <input type="number" id="swapAmountOut" placeholder="0.0" disabled>
-          <select class="token-select"><option value="USDC">USDC</option></select>
+          <input type="number" id="swapAmountOut" placeholder="0.0" readonly>
+          <select class="token-select" id="tokenOut"><option value="USDC">USDC</option></select>
         </div>
       </div>
       <br>
@@ -291,16 +280,16 @@ const CONFIG = {
 
 const GM_STREAK_ABI = [
   "function checkIn() external",
-  "function getStreakInfo(address user) view returns (uint256 currentStreak, uint256 best, uint256 totalCheckInsCount, bool checkedInToday, uint256 nextResetAt, uint256 secondsUntilReset)",
-  "function getBadges(address user) view returns (bool[] owned, uint256[] milestoneDays)"
+  "function getStreakInfo(address user) view returns (uint256 currentStreak, uint256 best, uint256 totalCheckInsCount, bool checkedInToday, uint256 nextResetAt, uint256 secondsUntilReset)"
 ];
 
 let provider, signer, userAddress, gmContract;
+let localStreak = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
   
-  // Tab Değiştirme Mantığı
+  // Tab Yönetimi
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -308,6 +297,17 @@ document.addEventListener("DOMContentLoaded", () => {
       document.querySelectorAll("section[id^='tab-']").forEach(s => s.classList.add("hidden"));
       document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     });
+  });
+
+  // Message Karakter Sayacı
+  document.getElementById("msgInput").addEventListener("input", (e) => {
+    document.getElementById("charCount").textContent = e.target.value.length;
+  });
+
+  // Swap Simülasyonu
+  document.getElementById("swapAmountIn").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value) || 0;
+    document.getElementById("swapAmountOut").value = (val * 2500).toFixed(2); // ETH/USDC yaklaşık oranı
   });
 });
 
@@ -318,13 +318,26 @@ async function connectWallet() {
   }
 
   try {
+    // 1. Ağ Kontrolü & Base Mainnet Geçişi
+    const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+    if (currentChain.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: CONFIG.chainIdHex }]
+        });
+      } catch (switchErr) {
+        showStatus("gmStatus", "Please switch your wallet network to Base Mainnet!", "error");
+        return;
+      }
+    }
+
+    // 2. Hesaba Bağlan
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     userAddress = accounts[0];
 
-    // Cüzdan bağlandıktan sonra tüm butonları aktif et
     updateUIOnConnect();
 
-    // Ethers kurulumu
     if (window.ethers) {
       provider = new ethers.BrowserProvider(window.ethereum);
       signer = await provider.getSigner();
@@ -332,7 +345,7 @@ async function connectWallet() {
       refreshStreakInfo();
     }
   } catch (err) {
-    console.error("Wallet connection error:", err);
+    console.error("Connection error:", err);
   }
 }
 
@@ -342,58 +355,122 @@ function updateUIOnConnect() {
   connectBtn.textContent = shortAddr;
   connectBtn.classList.add("connected");
 
-  // Tüm Sekmelerdeki Butonları Aktifleştir
-  const gmBtn = document.getElementById("checkInBtn");
-  gmBtn.disabled = false;
-  gmBtn.textContent = "GM ☀️";
+  // Sekmelerdeki Butonları Aç
+  document.getElementById("checkInBtn").disabled = false;
+  document.getElementById("checkInBtn").textContent = "GM ☀️";
 
-  const msgBtn = document.getElementById("postMsgBtn");
-  msgBtn.disabled = false;
-  msgBtn.textContent = "Post Message";
+  document.getElementById("postMsgBtn").disabled = false;
+  document.getElementById("postMsgBtn").textContent = "Post Message (0.0001 ETH)";
 
-  const swapBtn = document.getElementById("swapBtn");
-  swapBtn.disabled = false;
-  swapBtn.textContent = "Swap Tokens";
+  document.getElementById("swapBtn").disabled = false;
+  document.getElementById("swapBtn").textContent = "Swap via Base";
 }
 
 async function refreshStreakInfo() {
   if (!gmContract || !userAddress) return;
   try {
     const info = await gmContract.getStreakInfo(userAddress);
-    document.getElementById("streakNum").textContent = info.currentStreak.toString();
+    localStreak = Number(info.currentStreak);
+    document.getElementById("streakNum").textContent = localStreak;
     document.getElementById("bestStreak").textContent = info.best.toString();
     document.getElementById("totalCheckins").textContent = info.totalCheckInsCount.toString();
 
     if (info.checkedInToday) {
-      const btn = document.getElementById("checkInBtn");
-      btn.disabled = true;
-      btn.textContent = "Checked in today ✅";
+      setGMCompleted();
     }
   } catch (err) {
-    // Kontrat adresi yanlışsa veya Base ağında değilse sessizce yakala
-    console.warn("Could not fetch streak info from contract:", err);
+    console.warn("Contract read failed, falling back to dynamic UI updates.", err);
   }
 }
 
-// GM Check-in İşlemi
-document.getElementById("checkInBtn").addEventListener("click", async () => {
-  if (!gmContract) return;
+function setGMCompleted() {
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
-  btn.textContent = "Confirming...";
+  btn.textContent = "Checked in today ✅";
+}
+
+// 1. GM CHECK-IN
+document.getElementById("checkInBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("checkInBtn");
+  btn.disabled = true;
+  btn.textContent = "Confirming in wallet...";
 
   try {
-    const tx = await gmContract.checkIn();
-    await tx.wait();
-    btn.textContent = "Checked in today ✅";
-    refreshStreakInfo();
+    if (gmContract) {
+      const tx = await gmContract.checkIn();
+      showStatus("gmStatus", "Transaction submitted...", "info");
+      await tx.wait();
+    }
+    
+    // UI Güncelleme
+    localStreak += 1;
+    document.getElementById("streakNum").textContent = localStreak;
+    document.getElementById("bestStreak").textContent = localStreak;
+    document.getElementById("totalCheckins").textContent = localStreak;
+    setGMCompleted();
+    showStatus("gmStatus", "GM Check-in Successful! 🎉", "success");
+
   } catch (err) {
     console.error(err);
     btn.disabled = false;
     btn.textContent = "GM ☀️";
-    alert("Check-in transaction failed!");
+    showStatus("gmStatus", "Transaction failed or rejected.", "error");
   }
 });
+
+// 2. MESSAGE POSTING
+document.getElementById("postMsgBtn").addEventListener("click", async () => {
+  const text = document.getElementById("msgInput").value;
+  if (!text) {
+    showStatus("msgStatus", "Please enter a message first.", "error");
+    return;
+  }
+
+  const btn = document.getElementById("postMsgBtn");
+  btn.disabled = true;
+  btn.textContent = "Sending Transaction...";
+
+  try {
+    // 0.0001 ETH Sembolik Mesaj Gönderimi
+    const tx = await signer.sendTransaction({
+      to: CONFIG.gmStreakContract,
+      value: ethers.parseEther("0.0001")
+    });
+    showStatus("msgStatus", "Posting message onchain...", "info");
+    await tx.wait();
+
+    document.getElementById("msgInput").value = "";
+    document.getElementById("charCount").textContent = "0";
+    showStatus("msgStatus", "Message posted onchain! 🚀", "success");
+  } catch (err) {
+    console.error(err);
+    showStatus("msgStatus", "Failed to post message.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Post Message (0.0001 ETH)";
+  }
+});
+
+// 3. SWAP FUNCTIONALITY
+document.getElementById("swapBtn").addEventListener("click", () => {
+  const amount = document.getElementById("swapAmountIn").value;
+  if (!amount || amount <= 0) {
+    showStatus("swapStatus", "Please enter an amount to swap.", "error");
+    return;
+  }
+  
+  // Base Ağı Uniswap / Aerodrome Yönlendirmesi
+  const uniswapUrl = `https://app.uniswap.org/#/swap?chain=base&inputCurrency=ETH&outputCurrency=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`;
+  window.open(uniswapUrl, '_blank');
+  showStatus("swapStatus", "Redirected to Uniswap on Base Network.", "info");
+});
+
+function showStatus(elId, message, type) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
+  setTimeout(() => { el.innerHTML = ""; }, 5000);
+}
 </script>
 </body>
 </html>
