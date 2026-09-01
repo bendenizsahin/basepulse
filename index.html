@@ -4,13 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Basepulse</title>
-<!-- Ethers.js CDN (Yedekli Yükleme) -->
-<script src="https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js"></script>
-<script>
-  if (typeof ethers === 'undefined') {
-    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"><\/script>');
-  }
-</script>
+<!-- Ethers.js v6 Güvenli CDN Bağlantısı -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <style>
   :root {
     --bg: #0a0e17;
@@ -237,8 +232,7 @@
 <div class="wrap">
   <header>
     <div class="logo"><span class="dot"></span>Basepulse</div>
-    <!-- onclick doğrudan fonksiyona yönlendirildi -->
-    <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+    <button id="connectBtn">Connect Wallet</button>
   </header>
 
   <div class="tabs">
@@ -353,12 +347,19 @@ let provider, signer, userAddress;
 let gmContract, messagesContract, usdcContract;
 let countdownInterval;
 
-// Global alana bağlandı
-window.connectWallet = async function() {
+// Tüm DOM elamanları yüklendikten sonra event listener ekliyoruz
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("connectBtn");
+  if (btn) {
+    btn.addEventListener("click", connectWallet);
+  }
+});
+
+async function connectWallet() {
   showStatus("gmStatus", "Connecting to wallet...", "info");
 
   if (typeof window.ethereum === "undefined") {
-    alert("No wallet found! Please install MetaMask or Coinbase Wallet extension.");
+    alert("MetaMask or Coinbase Wallet is required to use this app.");
     showStatus("gmStatus", "No Web3 wallet extension found.", "error");
     return;
   }
@@ -373,7 +374,8 @@ window.connectWallet = async function() {
     userAddress = accounts[0];
 
     if (typeof ethers === "undefined") {
-      alert("Ethers.js library failed to load. Please check your internet connection.");
+      alert("Ethers.js library failed to load. Check your internet connection or adblocker.");
+      showStatus("gmStatus", "Ethers kütüphanesi yüklenemedi.", "error");
       return;
     }
 
@@ -403,11 +405,11 @@ window.connectWallet = async function() {
               }]
             });
           } catch (addError) {
-            showStatus("gmStatus", "Could not add network to wallet.", "error");
+            showStatus("gmStatus", "Ağ eklenemedi.", "error");
             return;
           }
         } else {
-          showStatus("gmStatus", "Please switch to Base Mainnet.", "error");
+          showStatus("gmStatus", "Lütfen cüzdanınızdan Base ağını onaylayın.", "error");
           return;
         }
       }
@@ -431,9 +433,9 @@ window.connectWallet = async function() {
 
   } catch (err) {
     console.error("Connection Error:", err);
-    showStatus("gmStatus", "Error: " + (err.message || "Connection rejected"), "error");
+    showStatus("gmStatus", "Error: " + (err.message || "User rejected connection"), "error");
   }
-};
+}
 
 function initContracts() {
   if (CONFIG.contracts.gmStreak && signer) {
