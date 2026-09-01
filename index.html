@@ -187,7 +187,6 @@
     <div class="tab active" data-tab="gm">GM Streak</div>
     <div class="tab" data-tab="messages">Messages</div>
     <div class="tab" data-tab="game">Lucky Game</div>
-    <div class="tab" data-tab="deploy">Deployer</div>
   </div>
 
   <!-- GM STREAK -->
@@ -206,7 +205,7 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee sent to contract.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via smart contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -222,36 +221,24 @@
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee sent to contract.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via smart contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
       <div id="gameStatus"></div>
     </div>
   </section>
-
-  <!-- DEPLOY CONTRACT -->
-  <section id="tab-deploy" class="hidden">
-    <div class="card">
-      <h2>Smart Contract Admin</h2>
-      <p style="font-size:12px; color:var(--text-dim);">Kontrat üzerinde biriken mikro ücretleri cüzdanınıza çekin.</p>
-      <button class="btn-primary" id="withdrawBtn" disabled><span>Withdraw Fees to Main Wallet</span></button>
-      <div id="deployStatus"></div>
-    </div>
-  </section>
 </div>
 
 <script>
-// Sizin Deploy Ettiğiniz Kontrat Adresi
-const CONTRACT_ADDRESS = "0xe15AbE26451547057A23AF28ADF782b69aaFD633"; 
+// Yeni Kontrat Adresiniz
+const CONTRACT_ADDRESS = "0x50F2eB3fB80d6671F161161Bb7820ED339E2b486"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Kontratınızın ABI Tanımlamaları
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
   "function playGame(uint8 _guess) external payable returns (bool won)",
-  "function withdraw() external",
   "function microFee() view returns (uint256)",
   "function streakCount(address) view returns (uint256)"
 ];
@@ -317,7 +304,6 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    // Kontrat Bağlantısı Kuruluyor
     pulseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
@@ -337,7 +323,6 @@ async function connectWallet() {
 
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
-    document.getElementById("withdrawBtn").disabled = false;
 
   } catch (err) {
     console.error(err);
@@ -345,7 +330,7 @@ async function connectWallet() {
   }
 }
 
-// GM CHECK-IN (Kontrat Çağrısı)
+// GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
   if (lastCheckInDay === today) return;
@@ -371,7 +356,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
-// MESSAGES (Kontrat Çağrısı)
+// MESSAGES
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
@@ -396,7 +381,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// LUCKY GAME (Kontrat Çağrısı)
+// LUCKY GAME
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
@@ -437,23 +422,6 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span id="playGameBtnText">Play & Win</span>`;
-  }
-});
-
-// CONTRACT WITHDRAW (Sadece Kontrat Sahibi İçi)
-document.getElementById("withdrawBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("withdrawBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Withdrawing...</span>`;
-  try {
-    const tx = await pulseContract.withdraw();
-    await tx.wait();
-    showStatus("deployStatus", "Accumulated fees successfully withdrawn to your wallet!", "success");
-  } catch (err) {
-    showStatus("deployStatus", "Withdraw failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span>Withdraw Fees to Main Wallet</span>`;
   }
 });
 
