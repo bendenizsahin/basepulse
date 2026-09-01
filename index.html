@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Basepulse</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<!-- Ethers.js CDN (Yedekli Yükleme) -->
+<script src="https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<script>
+  if (typeof ethers === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"><\/script>');
+  }
+</script>
 <style>
   :root {
     --bg: #0a0e17;
@@ -231,7 +237,8 @@
 <div class="wrap">
   <header>
     <div class="logo"><span class="dot"></span>Basepulse</div>
-    <button id="connectBtn">Connect Wallet</button>
+    <!-- onclick doğrudan fonksiyona yönlendirildi -->
+    <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
   </header>
 
   <div class="tabs">
@@ -311,11 +318,8 @@
 </div>
 
 <script>
-// ============================================================
-// CONFIG — Base Mainnet Yapılandırması
-// ============================================================
 const CONFIG = {
-  chainIdHex: "0x2105", // Base Mainnet Hex ID (8453)
+  chainIdHex: "0x2105", // Base Mainnet (8453)
   chainName: "Base Mainnet",
   rpcUrl: "https://mainnet.base.org",
   blockExplorerUrl: "https://basescan.org",
@@ -324,7 +328,7 @@ const CONFIG = {
     gmStreak: "0xea35fa5803EEAcc6195D32078a001834fe790c9A",
     onchainMessages: "",
     aerodromeSwap: "",
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" // Base Mainnet USDC Adresi
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
   }
 };
 
@@ -349,13 +353,13 @@ let provider, signer, userAddress;
 let gmContract, messagesContract, usdcContract;
 let countdownInterval;
 
-// ---------- Wallet Connect ----------
-const connectBtn = document.getElementById("connectBtn");
-connectBtn.addEventListener("click", connectWallet);
+// Global alana bağlandı
+window.connectWallet = async function() {
+  showStatus("gmStatus", "Connecting to wallet...", "info");
 
-async function connectWallet() {
-  if (!window.ethereum) {
-    alert("No wallet found. Please install MetaMask or Coinbase Wallet.");
+  if (typeof window.ethereum === "undefined") {
+    alert("No wallet found! Please install MetaMask or Coinbase Wallet extension.");
+    showStatus("gmStatus", "No Web3 wallet extension found.", "error");
     return;
   }
 
@@ -367,6 +371,11 @@ async function connectWallet() {
   try {
     const accounts = await injected.request({ method: "eth_requestAccounts" });
     userAddress = accounts[0];
+
+    if (typeof ethers === "undefined") {
+      alert("Ethers.js library failed to load. Please check your internet connection.");
+      return;
+    }
 
     provider = new ethers.BrowserProvider(injected);
     signer = await provider.getSigner();
@@ -394,16 +403,17 @@ async function connectWallet() {
               }]
             });
           } catch (addError) {
-            alert("Could not add network to wallet.");
+            showStatus("gmStatus", "Could not add network to wallet.", "error");
             return;
           }
         } else {
-          alert("Please switch to " + CONFIG.chainName + " manually.");
+          showStatus("gmStatus", "Please switch to Base Mainnet.", "error");
           return;
         }
       }
     }
 
+    const connectBtn = document.getElementById("connectBtn");
     connectBtn.textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     connectBtn.classList.add("connected");
 
@@ -416,26 +426,28 @@ async function connectWallet() {
     document.getElementById("checkInBtn").textContent = "GM ☀️";
     document.getElementById("postMsgBtn").textContent = "Post (0.001 USDC)";
     document.getElementById("swapBtn").textContent = "Swap";
+    
+    showStatus("gmStatus", "Wallet connected successfully!", "success");
 
   } catch (err) {
-    console.error("Connection error:", err);
-    showStatus("gmStatus", "Connection failed.", "error");
+    console.error("Connection Error:", err);
+    showStatus("gmStatus", "Error: " + (err.message || "Connection rejected"), "error");
   }
-}
+};
 
 function initContracts() {
-  if (CONFIG.contracts.gmStreak) {
+  if (CONFIG.contracts.gmStreak && signer) {
     gmContract = new ethers.Contract(CONFIG.contracts.gmStreak, GM_STREAK_ABI, signer);
   }
-  if (CONFIG.contracts.onchainMessages) {
+  if (CONFIG.contracts.onchainMessages && signer) {
     messagesContract = new ethers.Contract(CONFIG.contracts.onchainMessages, ONCHAIN_MESSAGES_ABI, signer);
   }
-  if (CONFIG.contracts.usdc) {
+  if (CONFIG.contracts.usdc && signer) {
     usdcContract = new ethers.Contract(CONFIG.contracts.usdc, USDC_ABI, signer);
   }
 }
 
-// ---------- Tabs ----------
+// Tabs
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -445,7 +457,7 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
-// ---------- GM Streak ----------
+// GM Streak
 document.getElementById("checkInBtn").addEventListener("click", doCheckIn);
 
 async function refreshStreakInfo() {
@@ -517,7 +529,7 @@ async function doCheckIn() {
   }
 }
 
-// ---------- Messages ----------
+// Messages
 const msgInput = document.getElementById("msgInput");
 msgInput.addEventListener("input", () => {
   document.getElementById("charCount").textContent = msgInput.value.length;
@@ -593,14 +605,15 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ---------- Swap ----------
+// Swap
 document.getElementById("swapBtn").addEventListener("click", () => {
   showStatus("swapStatus", "Swap contract not deployed yet.", "info");
 });
 
-// ---------- Helpers ----------
+// Helper
 function showStatus(elId, message, type) {
   const el = document.getElementById(elId);
+  if (!el) return;
   el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
   setTimeout(() => { el.innerHTML = ""; }, 6000);
 }
