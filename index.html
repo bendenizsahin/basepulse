@@ -182,7 +182,7 @@
   .pct-btn:hover { background: var(--blue); color: white; border-color: var(--blue); }
 
   .custom-token-input { margin-top: 8px; font-size: 12px; }
-  .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; }
+  .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
   .status-msg.error { background: rgba(255,92,92,0.1); color: var(--red); }
@@ -226,7 +226,7 @@
     </div>
   </section>
 
-  <!-- DUAL-SIDE DEX SWAP -->
+  <!-- REAL DEX ONCHAIN SWAP -->
   <section id="tab-swap" class="hidden">
     <div class="card">
       <h2>In-App Token Swap</h2>
@@ -287,7 +287,7 @@
         </div>
       </div>
 
-      <button class="btn-primary" id="swapBtn" disabled style="margin-top:10px;">Execute Swap</button>
+      <button class="btn-primary" id="swapBtn" disabled style="margin-top:10px;">Execute Real Swap</button>
       <div id="swapStatus"></div>
     </div>
   </section>
@@ -318,15 +318,19 @@
 <script>
 const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
 const MICRO_FEE_ETH = "0.00000004"; 
-const CONFIG = { chainIdHex: "0x2105" };
+const CONFIG = { chainIdHex: "0x2105" }; // Base Chain ID (8453)
+
+// Universal Base WETH & DEX Router Contracts
+const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
+const AERODROME_ROUTER_ADDRESS = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
 
 let provider, signer, userAddress;
-let currentPayBalance = 0; // Dynamic active token balance
+let currentPayBalance = 0;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
-// Base Mainnet Contract Addresses for Known Tokens
 const TOKEN_ADDRESSES = {
+  ETH: WETH_ADDRESS,
   USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   AERO: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
   DEGEN: "0x4ed4E862860bed51a9570b96d89af5e1B0Efefed",
@@ -334,7 +338,6 @@ const TOKEN_ADDRESSES = {
   DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
 };
 
-// Approximate USD Prices for Price Calculation
 const USD_PRICES = {
   ETH: 2600,
   USDC: 1,
@@ -346,7 +349,15 @@ const USD_PRICES = {
 
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
-  "function decimals() view returns (uint8)"
+  "function decimals() view returns (uint8)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+const ROUTER_ABI = [
+  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) returns (uint[] amounts)",
+  "function swapExactETHForTokens(uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) payable returns (uint[] amounts)",
+  "function swapExactTokensForETH(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) returns (uint[] amounts)"
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -355,7 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
   
   startUTCTimer();
 
-  // Navigation
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -365,10 +375,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Dynamic Token Selection
   document.getElementById("tokenIn").addEventListener("change", async (e) => {
-    const isCustom = e.target.value === "CUSTOM_IN";
-    document.getElementById("customInWrapper").classList.toggle("hidden", !isCustom);
+    document.getElementById("customInWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_IN");
     updatePaySymbol();
     await updatePayTokenBalance();
     calculateSwap();
@@ -386,7 +394,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("swapAmountIn").addEventListener("input", calculateSwap);
 
-  // Switch Tokens Direction (⇅)
   document.getElementById("switchTokensBtn").addEventListener("click", async () => {
     const tIn = document.getElementById("tokenIn");
     const tOut = document.getElementById("tokenOut");
@@ -409,7 +416,6 @@ function updatePaySymbol() {
   document.getElementById("tokenInSymbol").textContent = sym.replace("CUSTOM_IN", "Token");
 }
 
-// FETCH REAL ONCHAIN BALANCE FOR SELECTED TOKEN
 async function updatePayTokenBalance() {
   if (!provider || !userAddress) {
     currentPayBalance = 0;
@@ -442,7 +448,7 @@ async function updatePayTokenBalance() {
       }
     }
   } catch (err) {
-    console.error("Error fetching balance:", err);
+    console.error(err);
     currentPayBalance = 0;
   }
 
@@ -465,7 +471,6 @@ function calculateSwap() {
 
 function setSwapPercent(pct) {
   const amount = (currentPayBalance * pct);
-  // Precision formatting
   document.getElementById("swapAmountIn").value = amount > 0 ? amount.toFixed(4) : "0";
   calculateSwap();
 }
@@ -510,7 +515,6 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    // Load initial balance for active selected token
     await updatePayTokenBalance();
 
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
@@ -539,27 +543,133 @@ async function connectWallet() {
   }
 }
 
-// GM CHECK-IN
+// REAL ONCHAIN EXECUTE SWAP (Aerodrome Integration)
+document.getElementById("swapBtn").addEventListener("click", async () => {
+  const amountStr = document.getElementById("swapAmountIn").value;
+  const amountInFloat = parseFloat(amountStr);
+
+  if (!amountInFloat || amountInFloat <= 0) {
+    showStatus("swapStatus", "Please enter a valid amount.", "error");
+    return;
+  }
+  if (amountInFloat > currentPayBalance) {
+    showStatus("swapStatus", "Insufficient token balance!", "error");
+    return;
+  }
+
+  const tokenInKey = document.getElementById("tokenIn").value;
+  const tokenOutKey = document.getElementById("tokenOut").value;
+
+  let addrIn = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
+  let addrOut = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
+
+  if (!ethers.isAddress(addrIn) || !ethers.isAddress(addrOut)) {
+    showStatus("swapStatus", "Invalid Token Contract Address.", "error");
+    return;
+  }
+
+  const btn = document.getElementById("swapBtn");
+  btn.disabled = true;
+
+  try {
+    const routerContract = new ethers.Contract(AERODROME_ROUTER_ADDRESS, ROUTER_ABI, signer);
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 mins
+    const routes = [{ from: addrIn, to: addrOut, stable: false }];
+
+    if (tokenInKey === "ETH") {
+      // ETH -> TOKEN SWAP
+      btn.textContent = "Executing Swap...";
+      const amountWei = ethers.parseEther(amountStr);
+      
+      const tx = await routerContract.swapExactETHForTokens(
+        0, // Min amount out (Slippage disabled for simplicity)
+        routes,
+        userAddress,
+        deadline,
+        { value: amountWei }
+      );
+      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      await tx.wait();
+
+    } else if (tokenOutKey === "ETH") {
+      // TOKEN -> ETH SWAP
+      const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
+      const decimals = await tokenContract.decimals().catch(() => 18);
+      const parsedAmount = ethers.parseUnits(amountStr, decimals);
+
+      // 1. Approve Token
+      btn.textContent = "Approving Token...";
+      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER_ADDRESS);
+      if (allowance < parsedAmount) {
+        const appTx = await tokenContract.approve(AERODROME_ROUTER_ADDRESS, parsedAmount);
+        await appTx.wait();
+      }
+
+      // 2. Swap
+      btn.textContent = "Executing Swap...";
+      const tx = await routerContract.swapExactTokensForETH(
+        parsedAmount,
+        0,
+        routes,
+        userAddress,
+        deadline
+      );
+      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      await tx.wait();
+
+    } else {
+      // TOKEN -> TOKEN SWAP
+      const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
+      const decimals = await tokenContract.decimals().catch(() => 18);
+      const parsedAmount = ethers.parseUnits(amountStr, decimals);
+
+      // 1. Approve Token
+      btn.textContent = "Approving Token...";
+      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER_ADDRESS);
+      if (allowance < parsedAmount) {
+        const appTx = await tokenContract.approve(AERODROME_ROUTER_ADDRESS, parsedAmount);
+        await appTx.wait();
+      }
+
+      // 2. Swap
+      btn.textContent = "Executing Swap...";
+      const tx = await routerContract.swapExactTokensForTokens(
+        parsedAmount,
+        0,
+        routes,
+        userAddress,
+        deadline
+      );
+      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      await tx.wait();
+    }
+
+    showStatus("swapStatus", "Swap Executed & Confirmed Onchain! 🔄", "success");
+    await updatePayTokenBalance();
+
+  } catch (err) {
+    console.error(err);
+    showStatus("swapStatus", "Transaction Failed / Rejected. Check Pool Liquidity.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Execute Real Swap";
+  }
+});
+
+// OTHER TABS KEEPALIVE
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
   if (lastCheckInDay === today) return;
-
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
   btn.textContent = "Processing...";
-
   try {
-    const tx = await signer.sendTransaction({
-      to: OWNER_WALLET,
-      value: ethers.parseEther(MICRO_FEE_ETH)
-    });
+    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
-
     localStreak += 1;
     lastCheckInDay = today;
     localStorage.setItem("base_streak", localStreak);
     localStorage.setItem("base_last_checkin", today);
-
     document.getElementById("streakNum").textContent = localStreak;
     btn.textContent = "Checked in today ✅";
     showStatus("gmStatus", "GM Checked-in successfully on Base! 🎉", "success");
@@ -570,16 +680,11 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
-// MESSAGES
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
-  
   try {
-    const tx = await signer.sendTransaction({
-      to: OWNER_WALLET,
-      value: ethers.parseEther(MICRO_FEE_ETH)
-    });
+    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
     document.getElementById("msgInput").value = "";
     showStatus("msgStatus", "Message recorded onchain! 🚀", "success");
@@ -588,64 +693,12 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// EXECUTE SWAP
-document.getElementById("swapBtn").addEventListener("click", async () => {
-  const amount = parseFloat(document.getElementById("swapAmountIn").value);
-  if (!amount || amount <= 0) {
-    showStatus("swapStatus", "Please enter a valid swap amount.", "error");
-    return;
-  }
-
-  if (amount > currentPayBalance) {
-    showStatus("swapStatus", "Insufficient balance!", "error");
-    return;
-  }
-
-  const tokenIn = document.getElementById("tokenIn").value;
-  const tokenOut = document.getElementById("tokenOut").value;
-
-  if (tokenIn === "CUSTOM_IN" && !ethers.isAddress(document.getElementById("customInAddress").value)) {
-    showStatus("swapStatus", "Invalid custom Input Token address.", "error");
-    return;
-  }
-  if (tokenOut === "CUSTOM_OUT" && !ethers.isAddress(document.getElementById("customOutAddress").value)) {
-    showStatus("swapStatus", "Invalid custom Output Token address.", "error");
-    return;
-  }
-
-  const btn = document.getElementById("swapBtn");
-  btn.disabled = true;
-  btn.textContent = "Swapping onchain...";
-
-  try {
-    const tx = await signer.sendTransaction({
-      to: OWNER_WALLET,
-      value: ethers.parseEther(MICRO_FEE_ETH)
-    });
-    await tx.wait();
-    
-    showStatus("swapStatus", "Swap executed successfully! 🔄", "success");
-    await updatePayTokenBalance(); // Refresh balance after swap
-  } catch (err) {
-    showStatus("swapStatus", "Swap transaction rejected.", "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Execute Swap";
-  }
-});
-
-// GAME
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
-
   try {
-    const tx = await signer.sendTransaction({
-      to: OWNER_WALLET,
-      value: ethers.parseEther(MICRO_FEE_ETH)
-    });
+    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
-
     const winningNumber = Math.floor(Math.random() * 10) + 1;
     if (parseInt(num) === winningNumber) {
       showStatus("gameStatus", `Jackpot! Winning number was ${winningNumber} 🏆`, "success");
@@ -657,20 +710,14 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   }
 });
 
-// DEPLOYER
 document.getElementById("deployBtn").addEventListener("click", async () => {
   const name = document.getElementById("contractName").value || "BaseToken";
   const symbol = document.getElementById("contractSymbol").value || "BS";
-  
   const btn = document.getElementById("deployBtn");
   btn.disabled = true;
   btn.textContent = "Deploying...";
-
   try {
-    const tx = await signer.sendTransaction({
-      to: OWNER_WALLET,
-      value: ethers.parseEther(MICRO_FEE_ETH)
-    });
+    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
     showStatus("deployStatus", `Contract '${name}' (${symbol}) deployed!`, "success");
   } catch (err) {
@@ -685,7 +732,7 @@ function showStatus(elId, message, type) {
   const el = document.getElementById(elId);
   if (!el) return;
   el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
-  setTimeout(() => { el.innerHTML = ""; }, 5000);
+  setTimeout(() => { el.innerHTML = ""; }, 6000);
 }
 </script>
 </body>
