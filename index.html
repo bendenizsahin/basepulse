@@ -318,11 +318,12 @@
 <script>
 const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
 const MICRO_FEE_ETH = "0.00000004"; 
-const CONFIG = { chainIdHex: "0x2105" }; // Base Chain ID (8453)
+const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Universal Base WETH & DEX Router Contracts
+// Base Network Fixed Addresses & Aerodrome Router v2
 const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
-const AERODROME_ROUTER_ADDRESS = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
+const AERODROME_FACTORY = "0x420DD381b31a108547d4dE58f88807067715E103";
+const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
 
 let provider, signer, userAddress;
 let currentPayBalance = 0;
@@ -355,9 +356,9 @@ const ERC20_ABI = [
 ];
 
 const ROUTER_ABI = [
-  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) returns (uint[] amounts)",
-  "function swapExactETHForTokens(uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) payable returns (uint[] amounts)",
-  "function swapExactTokensForETH(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable)[] routes, address to, uint deadline) returns (uint[] amounts)"
+  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) returns (uint[] amounts)",
+  "function swapExactETHForTokens(uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) payable returns (uint[] amounts)",
+  "function swapExactTokensForETH(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) returns (uint[] amounts)"
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -471,7 +472,7 @@ function calculateSwap() {
 
 function setSwapPercent(pct) {
   const amount = (currentPayBalance * pct);
-  document.getElementById("swapAmountIn").value = amount > 0 ? amount.toFixed(4) : "0";
+  document.getElementById("swapAmountIn").value = amount > 0 ? amount.toFixed(5) : "0";
   calculateSwap();
 }
 
@@ -543,7 +544,7 @@ async function connectWallet() {
   }
 }
 
-// REAL ONCHAIN EXECUTE SWAP (Aerodrome Integration)
+// FIX: Aerodrome Route Standard Tuple (4 parameters: from, to, stable, factory)
 document.getElementById("swapBtn").addEventListener("click", async () => {
   const amountStr = document.getElementById("swapAmountIn").value;
   const amountInFloat = parseFloat(amountStr);
@@ -572,75 +573,75 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   btn.disabled = true;
 
   try {
-    const routerContract = new ethers.Contract(AERODROME_ROUTER_ADDRESS, ROUTER_ABI, signer);
-    const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 mins
-    const routes = [{ from: addrIn, to: addrOut, stable: false }];
+    const routerContract = new ethers.Contract(AERODROME_ROUTER, ROUTER_ABI, signer);
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
+
+    // Fixed Aerodrome V2 Struct
+    const routes = [{
+      from: addrIn,
+      to: addrOut,
+      stable: false,
+      factory: AERODROME_FACTORY
+    }];
 
     if (tokenInKey === "ETH") {
-      // ETH -> TOKEN SWAP
-      btn.textContent = "Executing Swap...";
+      btn.textContent = "Swapping ETH...";
       const amountWei = ethers.parseEther(amountStr);
       
       const tx = await routerContract.swapExactETHForTokens(
-        0, // Min amount out (Slippage disabled for simplicity)
+        1, // Minimum out threshold
         routes,
         userAddress,
         deadline,
         { value: amountWei }
       );
-      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
       await tx.wait();
 
     } else if (tokenOutKey === "ETH") {
-      // TOKEN -> ETH SWAP
       const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
       const decimals = await tokenContract.decimals().catch(() => 18);
       const parsedAmount = ethers.parseUnits(amountStr, decimals);
 
-      // 1. Approve Token
       btn.textContent = "Approving Token...";
-      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER_ADDRESS);
+      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
       if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER_ADDRESS, parsedAmount);
+        const appTx = await tokenContract.approve(AERODROME_ROUTER, parsedAmount);
         await appTx.wait();
       }
 
-      // 2. Swap
-      btn.textContent = "Executing Swap...";
+      btn.textContent = "Swapping Token...";
       const tx = await routerContract.swapExactTokensForETH(
         parsedAmount,
-        0,
+        1,
         routes,
         userAddress,
         deadline
       );
-      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
       await tx.wait();
 
     } else {
-      // TOKEN -> TOKEN SWAP
       const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
       const decimals = await tokenContract.decimals().catch(() => 18);
       const parsedAmount = ethers.parseUnits(amountStr, decimals);
 
-      // 1. Approve Token
       btn.textContent = "Approving Token...";
-      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER_ADDRESS);
+      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
       if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER_ADDRESS, parsedAmount);
+        const appTx = await tokenContract.approve(AERODROME_ROUTER, parsedAmount);
         await appTx.wait();
       }
 
-      // 2. Swap
-      btn.textContent = "Executing Swap...";
+      btn.textContent = "Swapping Token...";
       const tx = await routerContract.swapExactTokensForTokens(
         parsedAmount,
-        0,
+        1,
         routes,
         userAddress,
         deadline
       );
-      showStatus("swapStatus", "Transaction Submitted! Waiting confirmation...", "info");
+      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
       await tx.wait();
     }
 
@@ -648,8 +649,8 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
     await updatePayTokenBalance();
 
   } catch (err) {
-    console.error(err);
-    showStatus("swapStatus", "Transaction Failed / Rejected. Check Pool Liquidity.", "error");
+    console.error("Swap Error:", err);
+    showStatus("swapStatus", "Swap error: Check route or liquidity on Base network.", "error");
   } finally {
     btn.disabled = false;
     btn.textContent = "Execute Real Swap";
