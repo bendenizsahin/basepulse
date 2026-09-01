@@ -103,6 +103,10 @@
     font-size: 14px;
     cursor: pointer;
     transition: opacity .15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
   .btn-primary:hover { opacity: .88; }
   .btn-primary:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
@@ -124,6 +128,48 @@
   .streak-num { font-size: 52px; font-weight: 800; text-align: center; color: var(--blue-light); margin: 6px 0; }
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
+
+  /* ANIMASYONLAR VE EK EKRAN ELEMANLARI */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* BINGO / LUCKY SPINNER */
+  .bingo-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    height: 70px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .bingo-number {
+    font-size: 38px;
+    font-weight: 900;
+    color: var(--blue-light);
+    text-shadow: 0 0 10px rgba(76, 139, 255, 0.5);
+    transition: transform 0.05s ease-in-out;
+  }
+  .bingo-number.rolling {
+    animation: bounce 0.1s infinite alternate;
+  }
+  @keyframes bounce {
+    0% { transform: translateY(-4px); }
+    100% { transform: translateY(4px); }
+  }
 
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
@@ -152,7 +198,7 @@
       <h2>Daily GM Check-in</h2>
       <div class="streak-num" id="streakNum">0</div>
       <div class="timer-box">Resets in: <span id="utcTimer">--:--:--</span> (UTC 00:00)</div>
-      <button class="btn-primary" id="checkInBtn" disabled>Connect Wallet First</button>
+      <button class="btn-primary" id="checkInBtn" disabled><span>Connect Wallet First</span></button>
       <div id="gmStatus"></div>
     </div>
   </section>
@@ -163,7 +209,9 @@
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
       <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee (~$0.0001) sent to app developer.</div>
-      <button class="btn-primary" id="postMsgBtn" disabled>Post Message</button>
+      <button class="btn-primary" id="postMsgBtn" disabled>
+        <span id="postMsgBtnText">Post Message</span>
+      </button>
       <div id="msgStatus"></div>
     </div>
   </section>
@@ -172,9 +220,14 @@
   <section id="tab-game" class="hidden">
     <div class="card">
       <h2>Base Lucky Guess (1-10)</h2>
+      <div class="bingo-display">
+        <div class="bingo-number" id="bingoNum">?</div>
+      </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
       <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee: ~$0.0001 ETH</div>
-      <button class="btn-primary" id="playGameBtn" disabled>Play & Win</button>
+      <button class="btn-primary" id="playGameBtn" disabled>
+        <span id="playGameBtnText">Play & Win</span>
+      </button>
       <div id="gameStatus"></div>
     </div>
   </section>
@@ -185,7 +238,7 @@
       <h2>Smart Contract Deployer</h2>
       <input type="text" id="contractName" placeholder="Contract Name (e.g. MyToken)">
       <input type="text" id="contractSymbol" placeholder="Symbol (e.g. MTK)">
-      <button class="btn-primary" id="deployBtn" disabled>Deploy Sample Contract</button>
+      <button class="btn-primary" id="deployBtn" disabled><span>Deploy Sample Contract</span></button>
       <div id="deployStatus"></div>
     </div>
   </section>
@@ -199,6 +252,7 @@ const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 let provider, signer, userAddress;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
+let bingoInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -265,10 +319,10 @@ async function connectWallet() {
     const checkInBtn = document.getElementById("checkInBtn");
     if (lastCheckInDay === today) {
       checkInBtn.disabled = true;
-      checkInBtn.textContent = "Checked in today ✅";
+      checkInBtn.querySelector("span").textContent = "Checked in today ✅";
     } else {
       checkInBtn.disabled = false;
-      checkInBtn.textContent = "GM Check-in ☀️";
+      checkInBtn.querySelector("span").textContent = "GM Check-in ☀️";
     }
 
     document.getElementById("postMsgBtn").disabled = false;
@@ -287,7 +341,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   if (lastCheckInDay === today) return;
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
-  btn.textContent = "Processing...";
+  btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
   try {
     const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
@@ -296,44 +350,81 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     localStorage.setItem("base_streak", localStreak);
     localStorage.setItem("base_last_checkin", today);
     document.getElementById("streakNum").textContent = localStreak;
-    btn.textContent = "Checked in today ✅";
+    btn.innerHTML = `<span>Checked in today ✅</span>`;
     showStatus("gmStatus", "GM Checked-in successfully on Base! 🎉", "success");
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "GM Check-in ☀️";
+    btn.innerHTML = `<span>GM Check-in ☀️</span>`;
     showStatus("gmStatus", "Transaction failed.", "error");
   }
 });
 
-// MESSAGES
+// MESSAGES (ANIMASYONLU)
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
+  
+  const btn = document.getElementById("postMsgBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Awaiting Wallet Approval...</span>`;
+
   try {
     const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
+    btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
+    
     await tx.wait();
     document.getElementById("msgInput").value = "";
     showStatus("msgStatus", "Message recorded onchain! 🚀", "success");
   } catch (err) {
     showStatus("msgStatus", "Transaction failed.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span id="postMsgBtnText">Post Message</span>`;
   }
 });
 
-// LUCKY GAME
+// LUCKY GAME (BINGO ANIMASYONLU)
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
+
+  const btn = document.getElementById("playGameBtn");
+  const bingoEl = document.getElementById("bingoNum");
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Spinning Wheel...</span>`;
+  
+  // Bingo Sayı Çarkı Başlasın
+  bingoEl.classList.add("rolling");
+  bingoInterval = setInterval(() => {
+    bingoEl.textContent = Math.floor(Math.random() * 10) + 1;
+  }, 60);
+
   try {
     const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
+    btn.innerHTML = `<span class="spinner"></span> <span>Waiting Result...</span>`;
     await tx.wait();
+
+    // İşlem Onaylandı, Çarkı Durdur
+    clearInterval(bingoInterval);
+    bingoEl.classList.remove("rolling");
+
     const winningNumber = Math.floor(Math.random() * 10) + 1;
+    bingoEl.textContent = winningNumber;
+
     if (parseInt(num) === winningNumber) {
       showStatus("gameStatus", `Jackpot! Winning number was ${winningNumber} 🏆`, "success");
     } else {
       showStatus("gameStatus", `Winning number was ${winningNumber}. Try again!`, "info");
     }
   } catch (err) {
+    clearInterval(bingoInterval);
+    bingoEl.classList.remove("rolling");
+    bingoEl.textContent = "?";
     showStatus("gameStatus", "Game transaction rejected.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span id="playGameBtnText">Play & Win</span>`;
   }
 });
 
@@ -343,7 +434,7 @@ document.getElementById("deployBtn").addEventListener("click", async () => {
   const symbol = document.getElementById("contractSymbol").value || "BS";
   const btn = document.getElementById("deployBtn");
   btn.disabled = true;
-  btn.textContent = "Deploying...";
+  btn.innerHTML = `<span class="spinner"></span> <span>Deploying...</span>`;
   try {
     const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
     await tx.wait();
@@ -352,7 +443,7 @@ document.getElementById("deployBtn").addEventListener("click", async () => {
     showStatus("deployStatus", "Deployment failed.", "error");
   } finally {
     btn.disabled = false;
-    btn.textContent = "Deploy Sample Contract";
+    btn.innerHTML = `<span>Deploy Sample Contract</span>`;
   }
 });
 
