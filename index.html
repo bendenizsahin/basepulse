@@ -107,7 +107,7 @@
   .btn-primary:hover { opacity: .88; }
   .btn-primary:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
 
-  textarea, input, select {
+  textarea, input {
     width: 100%;
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
@@ -125,63 +125,6 @@
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
-  /* DEX Level Swap Component */
-  .swap-box {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px;
-    margin-bottom: 4px;
-  }
-  .swap-header {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-  }
-  .swap-row { display: flex; gap: 10px; align-items: center; }
-  .swap-row input { margin-bottom: 0; font-size: 18px; font-weight: 700; }
-  .swap-row select { width: 140px; margin-bottom: 0; background: var(--card); font-weight: 600; }
-
-  .switch-btn-wrap {
-    text-align: center;
-    margin: -8px 0;
-    position: relative;
-    z-index: 2;
-  }
-  .switch-btn {
-    background: var(--card);
-    border: 1px solid var(--border);
-    color: var(--blue-light);
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 14px;
-    transition: transform .2s;
-  }
-  .switch-btn:hover { transform: rotate(180deg); color: white; background: var(--blue); }
-
-  .pct-btns {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .pct-btn {
-    flex: 1;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    border-radius: 6px;
-    padding: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .pct-btn:hover { background: var(--blue); color: white; border-color: var(--blue); }
-
-  .custom-token-input { margin-top: 8px; font-size: 12px; }
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
@@ -199,7 +142,6 @@
   <div class="tabs">
     <div class="tab active" data-tab="gm">GM Streak</div>
     <div class="tab" data-tab="messages">Messages</div>
-    <div class="tab" data-tab="swap">Swap (In-App)</div>
     <div class="tab" data-tab="game">Lucky Game</div>
     <div class="tab" data-tab="deploy">Deployer</div>
   </div>
@@ -223,72 +165,6 @@
       <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee (~$0.0001) sent to app developer.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>Post Message</button>
       <div id="msgStatus"></div>
-    </div>
-  </section>
-
-  <!-- REAL DEX ONCHAIN SWAP -->
-  <section id="tab-swap" class="hidden">
-    <div class="card">
-      <h2>In-App Token Swap</h2>
-      
-      <!-- YOU PAY -->
-      <div class="swap-box">
-        <div class="swap-header">
-          <span>You Pay</span>
-          <span>Balance: <strong id="tokenInBalance" style="color:var(--text)">0.0000</strong> <span id="tokenInSymbol">ETH</span></span>
-        </div>
-        <div class="swap-row">
-          <input type="number" id="swapAmountIn" placeholder="0.0">
-          <select id="tokenIn">
-            <option value="ETH">ETH</option>
-            <option value="USDC">USDC</option>
-            <option value="AERO">AERO</option>
-            <option value="DEGEN">DEGEN</option>
-            <option value="BRETT">BRETT</option>
-            <option value="DAI">DAI</option>
-            <option value="CUSTOM_IN">+ Custom Token</option>
-          </select>
-        </div>
-        <div id="customInWrapper" class="hidden">
-          <input type="text" id="customInAddress" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
-        </div>
-        <div class="pct-btns">
-          <button class="pct-btn" onclick="setSwapPercent(0.25)">25%</button>
-          <button class="pct-btn" onclick="setSwapPercent(0.50)">50%</button>
-          <button class="pct-btn" onclick="setSwapPercent(0.75)">75%</button>
-          <button class="pct-btn" onclick="setSwapPercent(1.00)">100%</button>
-        </div>
-      </div>
-
-      <!-- SWITCH DIRECTION BUTTON -->
-      <div class="switch-btn-wrap">
-        <button class="switch-btn" id="switchTokensBtn" title="Switch Tokens">⇅</button>
-      </div>
-
-      <!-- YOU RECEIVE -->
-      <div class="swap-box">
-        <div class="swap-header">
-          <span>You Receive (Estimated)</span>
-        </div>
-        <div class="swap-row">
-          <input type="number" id="swapAmountOut" placeholder="0.0" readonly>
-          <select id="tokenOut">
-            <option value="USDC">USDC</option>
-            <option value="ETH">ETH</option>
-            <option value="AERO">AERO</option>
-            <option value="DEGEN">DEGEN</option>
-            <option value="BRETT">BRETT</option>
-            <option value="DAI">DAI</option>
-            <option value="CUSTOM_OUT">+ Custom Token</option>
-          </select>
-        </div>
-        <div id="customOutWrapper" class="hidden">
-          <input type="text" id="customOutAddress" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
-        </div>
-      </div>
-
-      <button class="btn-primary" id="swapBtn" disabled style="margin-top:10px;">Execute Real Swap</button>
-      <div id="swapStatus"></div>
     </div>
   </section>
 
@@ -320,46 +196,9 @@ const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309";
 const MICRO_FEE_ETH = "0.00000004"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Base Network Fixed Addresses & Aerodrome Router v2 (Doğrulanmış Checksum Formatları)
-const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
-const AERODROME_FACTORY = "0x420DD381b31a108547d4dE58f88807067715e103";
-const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
-
 let provider, signer, userAddress;
-let currentPayBalance = 0;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
-
-const TOKEN_ADDRESSES = {
-  ETH: "0x4200000000000000000000000000000000000006",
-  USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  AERO: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-  DEGEN: "0x4ed4E862860bed51a9570b96d89af5e1B0Efefed",
-  BRETT: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
-  DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
-};
-
-const USD_PRICES = {
-  ETH: 2600,
-  USDC: 1,
-  DAI: 1,
-  AERO: 1.44,
-  DEGEN: 0.017,
-  BRETT: 0.092
-};
-
-const ERC20_ABI = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function decimals() view returns (uint8)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-
-const ROUTER_ABI = [
-  "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) returns (uint[] amounts)",
-  "function swapExactETHForTokens(uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) payable returns (uint[] amounts)",
-  "function swapExactTokensForETH(uint amountIn, uint amountOutMin, tuple(address from, address to, bool stable, address factory)[] routes, address to, uint deadline) returns (uint[] amounts)"
-];
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -375,106 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     });
   });
-
-  document.getElementById("tokenIn").addEventListener("change", async (e) => {
-    document.getElementById("customInWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_IN");
-    updatePaySymbol();
-    await updatePayTokenBalance();
-    calculateSwap();
-  });
-
-  document.getElementById("customInAddress").addEventListener("input", async () => {
-    await updatePayTokenBalance();
-    calculateSwap();
-  });
-
-  document.getElementById("tokenOut").addEventListener("change", (e) => {
-    document.getElementById("customOutWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_OUT");
-    calculateSwap();
-  });
-
-  document.getElementById("swapAmountIn").addEventListener("input", calculateSwap);
-
-  document.getElementById("switchTokensBtn").addEventListener("click", async () => {
-    const tIn = document.getElementById("tokenIn");
-    const tOut = document.getElementById("tokenOut");
-
-    const tempVal = tIn.value;
-    tIn.value = tOut.value;
-    tOut.value = tempVal;
-
-    document.getElementById("customInWrapper").classList.toggle("hidden", tIn.value !== "CUSTOM_IN");
-    document.getElementById("customOutWrapper").classList.toggle("hidden", tOut.value !== "CUSTOM_OUT");
-
-    updatePaySymbol();
-    await updatePayTokenBalance();
-    calculateSwap();
-  });
 });
-
-function updatePaySymbol() {
-  const sym = document.getElementById("tokenIn").value;
-  document.getElementById("tokenInSymbol").textContent = sym.replace("CUSTOM_IN", "Token");
-}
-
-async function updatePayTokenBalance() {
-  if (!provider || !userAddress) {
-    currentPayBalance = 0;
-    document.getElementById("tokenInBalance").textContent = "0.0000";
-    return;
-  }
-
-  const selectedKey = document.getElementById("tokenIn").value;
-  document.getElementById("tokenInBalance").textContent = "...";
-
-  try {
-    if (selectedKey === "ETH") {
-      const balanceWei = await provider.getBalance(userAddress);
-      currentPayBalance = parseFloat(ethers.formatEther(balanceWei));
-    } else {
-      let contractAddr = TOKEN_ADDRESSES[selectedKey];
-      if (selectedKey === "CUSTOM_IN") {
-        contractAddr = document.getElementById("customInAddress").value.trim();
-      }
-
-      if (contractAddr && ethers.isAddress(contractAddr)) {
-        const contract = new ethers.Contract(contractAddr, ERC20_ABI, provider);
-        const [rawBal, decimals] = await Promise.all([
-          contract.balanceOf(userAddress),
-          contract.decimals().catch(() => 18)
-        ]);
-        currentPayBalance = parseFloat(ethers.formatUnits(rawBal, decimals));
-      } else {
-        currentPayBalance = 0;
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    currentPayBalance = 0;
-  }
-
-  document.getElementById("tokenInBalance").textContent = currentPayBalance.toFixed(4);
-}
-
-function calculateSwap() {
-  const amountIn = parseFloat(document.getElementById("swapAmountIn").value) || 0;
-  const tokenIn = document.getElementById("tokenIn").value;
-  const tokenOut = document.getElementById("tokenOut").value;
-
-  const priceIn = USD_PRICES[tokenIn] || 1;
-  const priceOut = USD_PRICES[tokenOut] || 1;
-
-  const totalUsdValue = amountIn * priceIn;
-  const estimatedOut = totalUsdValue / priceOut;
-
-  document.getElementById("swapAmountOut").value = amountIn > 0 ? estimatedOut.toFixed(4) : "";
-}
-
-function setSwapPercent(pct) {
-  const amount = (currentPayBalance * pct);
-  document.getElementById("swapAmountIn").value = amount > 0 ? amount.toFixed(5) : "0";
-  calculateSwap();
-}
 
 function startUTCTimer() {
   setInterval(() => {
@@ -516,8 +256,6 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    await updatePayTokenBalance();
-
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
     cb.textContent = shortAddr;
@@ -534,7 +272,6 @@ async function connectWallet() {
     }
 
     document.getElementById("postMsgBtn").disabled = false;
-    document.getElementById("swapBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
     document.getElementById("deployBtn").disabled = false;
 
@@ -544,124 +281,7 @@ async function connectWallet() {
   }
 }
 
-// SWAP TRANSACTION
-document.getElementById("swapBtn").addEventListener("click", async () => {
-  const amountStr = document.getElementById("swapAmountIn").value;
-  const amountInFloat = parseFloat(amountStr);
-
-  if (!amountInFloat || amountInFloat <= 0) {
-    showStatus("swapStatus", "Please enter a valid amount.", "error");
-    return;
-  }
-  if (amountInFloat > currentPayBalance) {
-    showStatus("swapStatus", "Insufficient token balance!", "error");
-    return;
-  }
-
-  const tokenInKey = document.getElementById("tokenIn").value;
-  const tokenOutKey = document.getElementById("tokenOut").value;
-
-  let addrInRaw = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
-  let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
-
-  if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
-    showStatus("swapStatus", "Invalid Token Contract Address.", "error");
-    return;
-  }
-
-  // Ethers v6 Checksum dönüşümü
-  const addrIn = ethers.getAddress(addrInRaw);
-  const addrOut = ethers.getAddress(addrOutRaw);
-
-  const btn = document.getElementById("swapBtn");
-  btn.disabled = true;
-
-  try {
-    const routerContract = new ethers.Contract(AERODROME_ROUTER, ROUTER_ABI, signer);
-    const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
-
-    // Aerodrome V2 için Rota Oluşturma
-    const routes = [{
-      from: tokenInKey === "ETH" ? WETH_ADDRESS : addrIn,
-      to: tokenOutKey === "ETH" ? WETH_ADDRESS : addrOut,
-      stable: false,
-      factory: AERODROME_FACTORY
-    }];
-
-    if (tokenInKey === "ETH") {
-      btn.textContent = "Swapping ETH...";
-      const amountWei = ethers.parseEther(amountStr);
-      
-      const tx = await routerContract.swapExactETHForTokens(
-        0,
-        routes,
-        userAddress,
-        deadline,
-        { value: amountWei }
-      );
-      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
-      await tx.wait();
-
-    } else if (tokenOutKey === "ETH") {
-      const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
-      const decimals = await tokenContract.decimals().catch(() => 18);
-      const parsedAmount = ethers.parseUnits(amountStr, decimals);
-
-      btn.textContent = "Approving Token...";
-      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
-      if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER, ethers.MaxUint256);
-        await appTx.wait();
-      }
-
-      btn.textContent = "Swapping Token...";
-      const tx = await routerContract.swapExactTokensForETH(
-        parsedAmount,
-        0,
-        routes,
-        userAddress,
-        deadline
-      );
-      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
-      await tx.wait();
-
-    } else {
-      const tokenContract = new ethers.Contract(addrIn, ERC20_ABI, signer);
-      const decimals = await tokenContract.decimals().catch(() => 18);
-      const parsedAmount = ethers.parseUnits(amountStr, decimals);
-
-      btn.textContent = "Approving Token...";
-      const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
-      if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER, ethers.MaxUint256);
-        await appTx.wait();
-      }
-
-      btn.textContent = "Swapping Token...";
-      const tx = await routerContract.swapExactTokensForTokens(
-        parsedAmount,
-        0,
-        routes,
-        userAddress,
-        deadline
-      );
-      showStatus("swapStatus", "Transaction Submitted! Confirming...", "info");
-      await tx.wait();
-    }
-
-    showStatus("swapStatus", "Swap Executed & Confirmed Onchain! 🔄", "success");
-    await updatePayTokenBalance();
-
-  } catch (err) {
-    console.error("Swap Error:", err);
-    showStatus("swapStatus", "Swap failed: " + (err.reason || err.message || "Error"), "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Execute Real Swap";
-  }
-});
-
-// OTHER TABS KEEPALIVE
+// GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
   if (lastCheckInDay === today) return;
@@ -685,6 +305,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
+// MESSAGES
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
@@ -698,6 +319,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
+// LUCKY GAME
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
@@ -715,6 +337,7 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   }
 });
 
+// DEPLOY CONTRACT
 document.getElementById("deployBtn").addEventListener("click", async () => {
   const name = document.getElementById("contractName").value || "BaseToken";
   const symbol = document.getElementById("contractSymbol").value || "BS";
