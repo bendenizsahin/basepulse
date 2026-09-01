@@ -240,7 +240,7 @@
     <div class="card">
       <h2>1. Mint Morebase Pass NFT</h2>
       <p style="font-size:12px; color:var(--text-dim);">Mint your official Morebase Pass directly on Base Mainnet.</p>
-      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.0001 ETH)</span></button>
+      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.000001 ETH)</span></button>
       <div id="mintStatus"></div>
     </div>
 
@@ -339,7 +339,6 @@ function startUTCTimer() {
 
     document.getElementById("utcTimer").textContent = `${hours}:${minutes}:${seconds}`;
 
-    // Gece yarısı 00:00 UTC olduğunda GM durumunu sıfırla
     if (hours === "00" && minutes === "00" && seconds === "00") {
       checkDailyGMStatus();
     }
@@ -386,7 +385,7 @@ async function connectWallet() {
   }
 }
 
-// GM CHECK-IN (GÜNLÜK 1 KERE SINIRLAMASIYLA)
+// GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
@@ -411,17 +410,20 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
-// MINT MOREBASE PASS NFT
+// MINT MOREBASE PASS NFT (0.000001 ETH)
 document.getElementById("mintNftBtn").addEventListener("click", async () => {
   const btn = document.getElementById("mintNftBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Minting Pass...</span>`;
   try {
-    let fee;
+    let fee = ethers.parseEther("0.000001");
     try {
-      fee = await pulseContract.nftMintFee();
+      const contractFee = await pulseContract.nftMintFee();
+      if (contractFee && contractFee < fee) {
+        fee = contractFee;
+      }
     } catch(e) {
-      fee = ethers.parseEther("0.0001");
+      // fallback to 0.000001 ETH if view function fails
     }
     const tx = await pulseContract.mintMorebasePass({ value: fee, gasLimit: 150000 });
     await tx.wait();
@@ -430,14 +432,14 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<span>Mint Morebase Pass (0.0001 ETH)</span>`;
+    btn.innerHTML = `<span>Mint Morebase Pass (0.000001 ETH)</span>`;
   }
 });
 
 // CREATE NFT COLLECTION DEPLOY
 document.getElementById("createNftBtn").addEventListener("click", async () => {
   const name = document.getElementById("nftNameInput").value || "Morebase Collection";
-  const symbol = document.getElementById("nftSymbolInput").value || "MBC";
+  const symbol = document.getElementById("nftSymbolInput").value || "MCC";
   const uri = document.getElementById("nftUriInput").value || "ipfs://";
 
   const btn = document.getElementById("createNftBtn");
@@ -445,7 +447,6 @@ document.getElementById("createNftBtn").addEventListener("click", async () => {
   btn.innerHTML = `<span class="spinner"></span> <span>Deploying NFT...</span>`;
 
   try {
-    // Minimal ERC-721 Deployment Bytecode
     const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
     const factory = new ethers.ContractFactory([], bytecode, signer);
     const contract = await factory.deploy();
