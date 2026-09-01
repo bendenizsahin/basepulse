@@ -125,6 +125,7 @@
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
+  /* DEX Level Swap Component */
   .swap-box {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
@@ -320,9 +321,9 @@ const MICRO_FEE_ETH = "0.00000004";
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
 // Base Network Fixed Addresses & Aerodrome Router v2
-const WETH_ADDRESS = ethers.getAddress("0x4200000000000000000000000000000000000006");
-const AERODROME_FACTORY = ethers.getAddress("0x420DD381b31a108547d4dE58f88807067715E103");
-const AERODROME_ROUTER = ethers.getAddress("0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43");
+const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
+const AERODROME_FACTORY = "0x420dd381b31a108547d4de58f88807067715e103";
+const AERODROME_ROUTER = "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43";
 
 let provider, signer, userAddress;
 let currentPayBalance = 0;
@@ -331,11 +332,11 @@ let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
 const TOKEN_ADDRESSES = {
   ETH: WETH_ADDRESS,
-  USDC: ethers.getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-  AERO: ethers.getAddress("0x940181a94A35A4569E4529A3CDfB74e38FD98631"),
-  DEGEN: ethers.getAddress("0x4ed4E862860bed51a9570b96d89af5e1B0Efefed"),
-  BRETT: ethers.getAddress("0x532f27101965dd16442E59d40670FaF5eBB142E4"),
-  DAI: ethers.getAddress("0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb")
+  USDC: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  AERO: "0x940181a94a35a4569e4529a3cdfb74e38fd98631",
+  DEGEN: "0x4ed4e862860bed51a9570b96d89af5e1b0efefed",
+  BRETT: "0x532f27101965dd16442e59d40670faf5ebb142e4",
+  DAI: "0x50c5725949a6f0c72e6c4a641f24049a917db0cb"
 };
 
 const USD_PRICES = {
@@ -409,11 +410,6 @@ document.addEventListener("DOMContentLoaded", () => {
     await updatePayTokenBalance();
     calculateSwap();
   });
-
-  if (typeof window.ethereum !== "undefined") {
-    window.ethereum.on('accountsChanged', () => window.location.reload());
-    window.ethereum.on('chainChanged', () => window.location.reload());
-  }
 });
 
 function updatePaySymbol() {
@@ -442,7 +438,7 @@ async function updatePayTokenBalance() {
       }
 
       if (contractAddr && ethers.isAddress(contractAddr)) {
-        const contract = new ethers.Contract(ethers.getAddress(contractAddr), ERC20_ABI, provider);
+        const contract = new ethers.Contract(contractAddr, ERC20_ABI, provider);
         const [rawBal, decimals] = await Promise.all([
           contract.balanceOf(userAddress),
           contract.decimals().catch(() => 18)
@@ -501,36 +497,21 @@ function getTodayUTCDate() {
 }
 
 async function connectWallet() {
-  if (typeof window.ethereum === "undefined") {
+  if (!window.ethereum) {
     alert("Please install MetaMask or Coinbase Wallet!");
     return;
   }
-
   try {
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    userAddress = accounts[0];
-
-    try {
+    const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+    if (currentChain.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: CONFIG.chainIdHex }]
       });
-    } catch (switchError) {
-      if (switchError.code === 4902) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [{
-            chainId: CONFIG.chainIdHex,
-            chainName: "Base Mainnet",
-            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-            rpcUrls: ["https://mainnet.base.org"],
-            blockExplorerUrls: ["https://basescan.org"]
-          }]
-        });
-      } else {
-        throw switchError;
-      }
     }
+
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    userAddress = accounts[0];
 
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
@@ -558,12 +539,12 @@ async function connectWallet() {
     document.getElementById("deployBtn").disabled = false;
 
   } catch (err) {
-    console.error("Wallet connection error:", err);
-    alert("Connection failed or rejected.");
+    console.error(err);
+    alert("Connection rejected.");
   }
 }
 
-// FIX: Aerodrome Route Standard Tuple
+// FIX: Aerodrome Route Standard Tuple (4 parameters: from, to, stable, factory)
 document.getElementById("swapBtn").addEventListener("click", async () => {
   const amountStr = document.getElementById("swapAmountIn").value;
   const amountInFloat = parseFloat(amountStr);
@@ -581,15 +562,15 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   const tokenOutKey = document.getElementById("tokenOut").value;
 
   let addrInRaw = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
-  let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
+let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
 
-  if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
-    showStatus("swapStatus", "Invalid Token Contract Address.", "error");
-    return;
-  }
+if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
+  showStatus("swapStatus", "Invalid Token Contract Address.", "error");
+  return;
+}
 
-  const addrIn = ethers.getAddress(addrInRaw);
-  const addrOut = ethers.getAddress(addrOutRaw);
+const addrIn = ethers.getAddress(addrInRaw);
+const addrOut = ethers.getAddress(addrOutRaw);
 
   const btn = document.getElementById("swapBtn");
   btn.disabled = true;
@@ -598,6 +579,7 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
     const routerContract = new ethers.Contract(AERODROME_ROUTER, ROUTER_ABI, signer);
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
 
+    // Fixed Aerodrome V2 Struct
     const routes = [{
       from: addrIn,
       to: addrOut,
@@ -610,7 +592,7 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
       const amountWei = ethers.parseEther(amountStr);
       
       const tx = await routerContract.swapExactETHForTokens(
-        1,
+        1, // Minimum out threshold
         routes,
         userAddress,
         deadline,
@@ -678,6 +660,7 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   }
 });
 
+// OTHER TABS KEEPALIVE
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
   if (lastCheckInDay === today) return;
