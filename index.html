@@ -320,7 +320,7 @@ const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309";
 const MICRO_FEE_ETH = "0.00000004"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Base Network Fixed Addresses & Aerodrome Router v2
+// Base Network Fixed Addresses & Aerodrome Router v2 (Doğrulanmış Checksum Formatları)
 const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
 const AERODROME_FACTORY = "0x420DD381b31a108547d4dE58f88807067715e103";
 const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
@@ -544,7 +544,7 @@ async function connectWallet() {
   }
 }
 
-// FIX: Aerodrome Route Standard Tuple (4 parameters: from, to, stable, factory)
+// SWAP TRANSACTION
 document.getElementById("swapBtn").addEventListener("click", async () => {
   const amountStr = document.getElementById("swapAmountIn").value;
   const amountInFloat = parseFloat(amountStr);
@@ -562,15 +562,16 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   const tokenOutKey = document.getElementById("tokenOut").value;
 
   let addrInRaw = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
-let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
+  let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
 
-if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
-  showStatus("swapStatus", "Invalid Token Contract Address.", "error");
-  return;
-}
+  if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
+    showStatus("swapStatus", "Invalid Token Contract Address.", "error");
+    return;
+  }
 
-const addrIn = ethers.getAddress(addrInRaw);
-const addrOut = ethers.getAddress(addrOutRaw);
+  // Ethers v6 Checksum dönüşümü
+  const addrIn = ethers.getAddress(addrInRaw);
+  const addrOut = ethers.getAddress(addrOutRaw);
 
   const btn = document.getElementById("swapBtn");
   btn.disabled = true;
@@ -579,10 +580,10 @@ const addrOut = ethers.getAddress(addrOutRaw);
     const routerContract = new ethers.Contract(AERODROME_ROUTER, ROUTER_ABI, signer);
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
 
-    // Fixed Aerodrome V2 Struct
+    // Aerodrome V2 için Rota Oluşturma
     const routes = [{
-      from: addrIn,
-      to: addrOut,
+      from: tokenInKey === "ETH" ? WETH_ADDRESS : addrIn,
+      to: tokenOutKey === "ETH" ? WETH_ADDRESS : addrOut,
       stable: false,
       factory: AERODROME_FACTORY
     }];
@@ -592,7 +593,7 @@ const addrOut = ethers.getAddress(addrOutRaw);
       const amountWei = ethers.parseEther(amountStr);
       
       const tx = await routerContract.swapExactETHForTokens(
-        1, // Minimum out threshold
+        0,
         routes,
         userAddress,
         deadline,
@@ -609,14 +610,14 @@ const addrOut = ethers.getAddress(addrOutRaw);
       btn.textContent = "Approving Token...";
       const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
       if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER, parsedAmount);
+        const appTx = await tokenContract.approve(AERODROME_ROUTER, ethers.MaxUint256);
         await appTx.wait();
       }
 
       btn.textContent = "Swapping Token...";
       const tx = await routerContract.swapExactTokensForETH(
         parsedAmount,
-        1,
+        0,
         routes,
         userAddress,
         deadline
@@ -632,14 +633,14 @@ const addrOut = ethers.getAddress(addrOutRaw);
       btn.textContent = "Approving Token...";
       const allowance = await tokenContract.allowance(userAddress, AERODROME_ROUTER);
       if (allowance < parsedAmount) {
-        const appTx = await tokenContract.approve(AERODROME_ROUTER, parsedAmount);
+        const appTx = await tokenContract.approve(AERODROME_ROUTER, ethers.MaxUint256);
         await appTx.wait();
       }
 
       btn.textContent = "Swapping Token...";
       const tx = await routerContract.swapExactTokensForTokens(
         parsedAmount,
-        1,
+        0,
         routes,
         userAddress,
         deadline
@@ -653,7 +654,7 @@ const addrOut = ethers.getAddress(addrOutRaw);
 
   } catch (err) {
     console.error("Swap Error:", err);
-    showStatus("swapStatus", "Swap error: Check route or liquidity on Base network.", "error");
+    showStatus("swapStatus", "Swap failed: " + (err.reason || err.message || "Error"), "error");
   } finally {
     btn.disabled = false;
     btn.textContent = "Execute Real Swap";
