@@ -321,9 +321,9 @@ const MICRO_FEE_ETH = "0.00000004";
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
 // Base Network Fixed Addresses & Aerodrome Router v2
-const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
-const AERODROME_FACTORY = "0x420DD381b31a108547d4dE58f88807067715E103";
-const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
+const WETH_ADDRESS = ethers.getAddress("0x4200000000000000000000000000000000000006");
+const AERODROME_FACTORY = ethers.getAddress("0x420DD381b31a108547d4dE58f88807067715E103");
+const AERODROME_ROUTER = ethers.getAddress("0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43");
 
 let provider, signer, userAddress;
 let currentPayBalance = 0;
@@ -332,11 +332,11 @@ let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
 const TOKEN_ADDRESSES = {
   ETH: WETH_ADDRESS,
-  USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  AERO: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-  DEGEN: "0x4ed4E862860bed51a9570b96d89af5e1B0Efefed",
-  BRETT: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
-  DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
+  USDC: ethers.getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+  AERO: ethers.getAddress("0x940181a94A35A4569E4529A3CDfB74e38FD98631"),
+  DEGEN: ethers.getAddress("0x4ed4E862860bed51a9570b96d89af5e1B0Efefed"),
+  BRETT: ethers.getAddress("0x532f27101965dd16442E59d40670FaF5eBB142E4"),
+  DAI: ethers.getAddress("0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb")
 };
 
 const USD_PRICES = {
@@ -561,13 +561,16 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   const tokenInKey = document.getElementById("tokenIn").value;
   const tokenOutKey = document.getElementById("tokenOut").value;
 
-  let addrIn = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
-  let addrOut = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
+  let addrInRaw = tokenInKey === "CUSTOM_IN" ? document.getElementById("customInAddress").value.trim() : TOKEN_ADDRESSES[tokenInKey];
+let addrOutRaw = tokenOutKey === "CUSTOM_OUT" ? document.getElementById("customOutAddress").value.trim() : TOKEN_ADDRESSES[tokenOutKey];
 
-  if (!ethers.isAddress(addrIn) || !ethers.isAddress(addrOut)) {
-    showStatus("swapStatus", "Invalid Token Contract Address.", "error");
-    return;
-  }
+if (!ethers.isAddress(addrInRaw) || !ethers.isAddress(addrOutRaw)) {
+  showStatus("swapStatus", "Invalid Token Contract Address.", "error");
+  return;
+}
+
+const addrIn = ethers.getAddress(addrInRaw);
+const addrOut = ethers.getAddress(addrOutRaw);
 
   const btn = document.getElementById("swapBtn");
   btn.disabled = true;
