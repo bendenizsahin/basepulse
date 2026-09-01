@@ -235,7 +235,7 @@
       <div class="swap-box">
         <div class="swap-header">
           <span>You Pay</span>
-          <span>Balance: <strong id="tokenInBalance" style="color:var(--text)">0.00</strong> <span id="tokenInSymbol">ETH</span></span>
+          <span>Balance: <strong id="tokenInBalance" style="color:var(--text)">0.0000</strong> <span id="tokenInSymbol">ETH</span></span>
         </div>
         <div class="swap-row">
           <input type="number" id="swapAmountIn" placeholder="0.0">
@@ -256,7 +256,7 @@
           <button class="pct-btn" onclick="setSwapPercent(0.25)">25%</button>
           <button class="pct-btn" onclick="setSwapPercent(0.50)">50%</button>
           <button class="pct-btn" onclick="setSwapPercent(0.75)">75%</button>
-          <button class="pct-btn" onclick="setSwapPercent(0.98)">100%</button>
+          <button class="pct-btn" onclick="setSwapPercent(1.00)">100%</button>
         </div>
       </div>
 
@@ -321,11 +321,20 @@ const MICRO_FEE_ETH = "0.00000004";
 const CONFIG = { chainIdHex: "0x2105" };
 
 let provider, signer, userAddress;
-let userEthBalance = 0;
+let currentPayBalance = 0; // Dynamic active token balance
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
-// Relative USD Prices for Cross-Token Calculations
+// Base Mainnet Contract Addresses for Known Tokens
+const TOKEN_ADDRESSES = {
+  USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  AERO: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+  DEGEN: "0x4ed4E862860bed51a9570b96d89af5e1B0Efefed",
+  BRETT: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
+  DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
+};
+
+// Approximate USD Prices for Price Calculation
 const USD_PRICES = {
   ETH: 2600,
   USDC: 1,
@@ -334,6 +343,11 @@ const USD_PRICES = {
   DEGEN: 0.017,
   BRETT: 0.092
 };
+
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)"
+];
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -351,10 +365,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Dynamic Token Selection & Input Handlers
-  document.getElementById("tokenIn").addEventListener("change", (e) => {
-    document.getElementById("customInWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_IN");
+  // Dynamic Token Selection
+  document.getElementById("tokenIn").addEventListener("change", async (e) => {
+    const isCustom = e.target.value === "CUSTOM_IN";
+    document.getElementById("customInWrapper").classList.toggle("hidden", !isCustom);
     updatePaySymbol();
+    await updatePayTokenBalance();
+    calculateSwap();
+  });
+
+  document.getElementById("customInAddress").addEventListener("input", async () => {
+    await updatePayTokenBalance();
     calculateSwap();
   });
 
@@ -366,7 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("swapAmountIn").addEventListener("input", calculateSwap);
 
   // Switch Tokens Direction (⇅)
-  document.getElementById("switchTokensBtn").addEventListener("click", () => {
+  document.getElementById("switchTokensBtn").addEventListener("click", async () => {
     const tIn = document.getElementById("tokenIn");
     const tOut = document.getElementById("tokenOut");
 
@@ -378,6 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("customOutWrapper").classList.toggle("hidden", tOut.value !== "CUSTOM_OUT");
 
     updatePaySymbol();
+    await updatePayTokenBalance();
     calculateSwap();
   });
 });
@@ -385,6 +407,46 @@ document.addEventListener("DOMContentLoaded", () => {
 function updatePaySymbol() {
   const sym = document.getElementById("tokenIn").value;
   document.getElementById("tokenInSymbol").textContent = sym.replace("CUSTOM_IN", "Token");
+}
+
+// FETCH REAL ONCHAIN BALANCE FOR SELECTED TOKEN
+async function updatePayTokenBalance() {
+  if (!provider || !userAddress) {
+    currentPayBalance = 0;
+    document.getElementById("tokenInBalance").textContent = "0.0000";
+    return;
+  }
+
+  const selectedKey = document.getElementById("tokenIn").value;
+  document.getElementById("tokenInBalance").textContent = "...";
+
+  try {
+    if (selectedKey === "ETH") {
+      const balanceWei = await provider.getBalance(userAddress);
+      currentPayBalance = parseFloat(ethers.formatEther(balanceWei));
+    } else {
+      let contractAddr = TOKEN_ADDRESSES[selectedKey];
+      if (selectedKey === "CUSTOM_IN") {
+        contractAddr = document.getElementById("customInAddress").value.trim();
+      }
+
+      if (contractAddr && ethers.isAddress(contractAddr)) {
+        const contract = new ethers.Contract(contractAddr, ERC20_ABI, provider);
+        const [rawBal, decimals] = await Promise.all([
+          contract.balanceOf(userAddress),
+          contract.decimals().catch(() => 18)
+        ]);
+        currentPayBalance = parseFloat(ethers.formatUnits(rawBal, decimals));
+      } else {
+        currentPayBalance = 0;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching balance:", err);
+    currentPayBalance = 0;
+  }
+
+  document.getElementById("tokenInBalance").textContent = currentPayBalance.toFixed(4);
 }
 
 function calculateSwap() {
@@ -402,14 +464,9 @@ function calculateSwap() {
 }
 
 function setSwapPercent(pct) {
-  if (!userEthBalance) return;
-  const tokenIn = document.getElementById("tokenIn").value;
-  
-  // Highlighting ETH balance calculations, scalable for other tokens
-  let available = tokenIn === "ETH" ? userEthBalance : 1000; 
-  const amount = (available * pct).toFixed(4);
-  
-  document.getElementById("swapAmountIn").value = amount;
+  const amount = (currentPayBalance * pct);
+  // Precision formatting
+  document.getElementById("swapAmountIn").value = amount > 0 ? amount.toFixed(4) : "0";
   calculateSwap();
 }
 
@@ -453,10 +510,8 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    // Load Balance
-    const balanceWei = await provider.getBalance(userAddress);
-    userEthBalance = parseFloat(ethers.formatEther(balanceWei));
-    document.getElementById("tokenInBalance").textContent = userEthBalance.toFixed(4);
+    // Load initial balance for active selected token
+    await updatePayTokenBalance();
 
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
@@ -535,9 +590,14 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
 
 // EXECUTE SWAP
 document.getElementById("swapBtn").addEventListener("click", async () => {
-  const amount = document.getElementById("swapAmountIn").value;
+  const amount = parseFloat(document.getElementById("swapAmountIn").value);
   if (!amount || amount <= 0) {
-    showStatus("swapStatus", "Please enter valid swap amount.", "error");
+    showStatus("swapStatus", "Please enter a valid swap amount.", "error");
+    return;
+  }
+
+  if (amount > currentPayBalance) {
+    showStatus("swapStatus", "Insufficient balance!", "error");
     return;
   }
 
@@ -563,7 +623,9 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
       value: ethers.parseEther(MICRO_FEE_ETH)
     });
     await tx.wait();
+    
     showStatus("swapStatus", "Swap executed successfully! 🔄", "success");
+    await updatePayTokenBalance(); // Refresh balance after swap
   } catch (err) {
     showStatus("swapStatus", "Swap transaction rejected.", "error");
   } finally {
