@@ -125,13 +125,13 @@
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
-  /* Professional Swap Styles */
+  /* DEX Level Swap Component */
   .swap-box {
     background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 14px;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
   }
   .swap-header {
     display: flex;
@@ -142,7 +142,26 @@
   }
   .swap-row { display: flex; gap: 10px; align-items: center; }
   .swap-row input { margin-bottom: 0; font-size: 18px; font-weight: 700; }
-  .swap-row select { width: 130px; margin-bottom: 0; background: var(--card); font-weight: 600; }
+  .swap-row select { width: 140px; margin-bottom: 0; background: var(--card); font-weight: 600; }
+
+  .switch-btn-wrap {
+    text-align: center;
+    margin: -8px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .switch-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--blue-light);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    transition: transform .2s;
+  }
+  .switch-btn:hover { transform: rotate(180deg); color: white; background: var(--blue); }
 
   .pct-btns {
     display: flex;
@@ -162,11 +181,7 @@
   }
   .pct-btn:hover { background: var(--blue); color: white; border-color: var(--blue); }
 
-  .custom-token-input {
-    margin-top: 8px;
-    font-size: 12px;
-  }
-
+  .custom-token-input { margin-top: 8px; font-size: 12px; }
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
@@ -211,7 +226,7 @@
     </div>
   </section>
 
-  <!-- PROFESSIONAL SWAP -->
+  <!-- DUAL-SIDE DEX SWAP -->
   <section id="tab-swap" class="hidden">
     <div class="card">
       <h2>In-App Token Swap</h2>
@@ -220,13 +235,22 @@
       <div class="swap-box">
         <div class="swap-header">
           <span>You Pay</span>
-          <span>Balance: <strong id="userEthBalance" style="color:var(--text)">0.0000</strong> ETH</span>
+          <span>Balance: <strong id="tokenInBalance" style="color:var(--text)">0.00</strong> <span id="tokenInSymbol">ETH</span></span>
         </div>
         <div class="swap-row">
           <input type="number" id="swapAmountIn" placeholder="0.0">
           <select id="tokenIn">
             <option value="ETH">ETH</option>
+            <option value="USDC">USDC</option>
+            <option value="AERO">AERO</option>
+            <option value="DEGEN">DEGEN</option>
+            <option value="BRETT">BRETT</option>
+            <option value="DAI">DAI</option>
+            <option value="CUSTOM_IN">+ Custom Token</option>
           </select>
+        </div>
+        <div id="customInWrapper" class="hidden">
+          <input type="text" id="customInAddress" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
         </div>
         <div class="pct-btns">
           <button class="pct-btn" onclick="setSwapPercent(0.25)">25%</button>
@@ -236,7 +260,10 @@
         </div>
       </div>
 
-      <div style="text-align:center; color:var(--text-dim); margin: -2px 0 8px;">↓</div>
+      <!-- SWITCH DIRECTION BUTTON -->
+      <div class="switch-btn-wrap">
+        <button class="switch-btn" id="switchTokensBtn" title="Switch Tokens">⇅</button>
+      </div>
 
       <!-- YOU RECEIVE -->
       <div class="swap-box">
@@ -247,19 +274,20 @@
           <input type="number" id="swapAmountOut" placeholder="0.0" readonly>
           <select id="tokenOut">
             <option value="USDC">USDC</option>
+            <option value="ETH">ETH</option>
             <option value="AERO">AERO</option>
             <option value="DEGEN">DEGEN</option>
             <option value="BRETT">BRETT</option>
             <option value="DAI">DAI</option>
-            <option value="CUSTOM">+ Custom Address</option>
+            <option value="CUSTOM_OUT">+ Custom Token</option>
           </select>
         </div>
-        <div id="customTokenWrapper" class="hidden">
-          <input type="text" id="customContractInput" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
+        <div id="customOutWrapper" class="hidden">
+          <input type="text" id="customOutAddress" class="custom-token-input" placeholder="Paste Token Contract Address (0x...)">
         </div>
       </div>
 
-      <button class="btn-primary" id="swapBtn" disabled>Execute Swap</button>
+      <button class="btn-primary" id="swapBtn" disabled style="margin-top:10px;">Execute Swap</button>
       <div id="swapStatus"></div>
     </div>
   </section>
@@ -289,20 +317,22 @@
 
 <script>
 const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
-const MICRO_FEE_ETH = "0.00000004"; // ~$0.0001
-const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet
+const MICRO_FEE_ETH = "0.00000004"; 
+const CONFIG = { chainIdHex: "0x2105" };
 
 let provider, signer, userAddress;
-let userBalanceEth = 0;
+let userEthBalance = 0;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 
-const TOKEN_RATES = {
-  USDC: 2600,
-  AERO: 1800,
-  DEGEN: 150000,
-  BRETT: 28000,
-  DAI: 2600
+// Relative USD Prices for Cross-Token Calculations
+const USD_PRICES = {
+  ETH: 2600,
+  USDC: 1,
+  DAI: 1,
+  AERO: 1.44,
+  DEGEN: 0.017,
+  BRETT: 0.092
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -311,7 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   startUTCTimer();
 
-  // Tab Navigation
+  // Navigation
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -321,30 +351,64 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Custom Contract Toggle
+  // Dynamic Token Selection & Input Handlers
+  document.getElementById("tokenIn").addEventListener("change", (e) => {
+    document.getElementById("customInWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_IN");
+    updatePaySymbol();
+    calculateSwap();
+  });
+
   document.getElementById("tokenOut").addEventListener("change", (e) => {
-    const wrapper = document.getElementById("customTokenWrapper");
-    if (e.target.value === "CUSTOM") {
-      wrapper.classList.remove("hidden");
-    } else {
-      wrapper.classList.add("hidden");
-    }
+    document.getElementById("customOutWrapper").classList.toggle("hidden", e.target.value !== "CUSTOM_OUT");
     calculateSwap();
   });
 
   document.getElementById("swapAmountIn").addEventListener("input", calculateSwap);
+
+  // Switch Tokens Direction (⇅)
+  document.getElementById("switchTokensBtn").addEventListener("click", () => {
+    const tIn = document.getElementById("tokenIn");
+    const tOut = document.getElementById("tokenOut");
+
+    const tempVal = tIn.value;
+    tIn.value = tOut.value;
+    tOut.value = tempVal;
+
+    document.getElementById("customInWrapper").classList.toggle("hidden", tIn.value !== "CUSTOM_IN");
+    document.getElementById("customOutWrapper").classList.toggle("hidden", tOut.value !== "CUSTOM_OUT");
+
+    updatePaySymbol();
+    calculateSwap();
+  });
 });
 
+function updatePaySymbol() {
+  const sym = document.getElementById("tokenIn").value;
+  document.getElementById("tokenInSymbol").textContent = sym.replace("CUSTOM_IN", "Token");
+}
+
 function calculateSwap() {
-  const val = parseFloat(document.getElementById("swapAmountIn").value) || 0;
-  const token = document.getElementById("tokenOut").value;
-  let rate = TOKEN_RATES[token] || 2000;
-  document.getElementById("swapAmountOut").value = (val * rate).toFixed(4);
+  const amountIn = parseFloat(document.getElementById("swapAmountIn").value) || 0;
+  const tokenIn = document.getElementById("tokenIn").value;
+  const tokenOut = document.getElementById("tokenOut").value;
+
+  const priceIn = USD_PRICES[tokenIn] || 1;
+  const priceOut = USD_PRICES[tokenOut] || 1;
+
+  const totalUsdValue = amountIn * priceIn;
+  const estimatedOut = totalUsdValue / priceOut;
+
+  document.getElementById("swapAmountOut").value = amountIn > 0 ? estimatedOut.toFixed(4) : "";
 }
 
 function setSwapPercent(pct) {
-  if (!userBalanceEth) return;
-  const amount = (userBalanceEth * pct).toFixed(5);
+  if (!userEthBalance) return;
+  const tokenIn = document.getElementById("tokenIn").value;
+  
+  // Highlighting ETH balance calculations, scalable for other tokens
+  let available = tokenIn === "ETH" ? userEthBalance : 1000; 
+  const amount = (available * pct).toFixed(4);
+  
   document.getElementById("swapAmountIn").value = amount;
   calculateSwap();
 }
@@ -389,10 +453,10 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
-    // Fetch Balance
+    // Load Balance
     const balanceWei = await provider.getBalance(userAddress);
-    userBalanceEth = parseFloat(ethers.formatEther(balanceWei));
-    document.getElementById("userEthBalance").textContent = userBalanceEth.toFixed(4);
+    userEthBalance = parseFloat(ethers.formatEther(balanceWei));
+    document.getElementById("tokenInBalance").textContent = userEthBalance.toFixed(4);
 
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
@@ -469,7 +533,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// SWAP EXECUTION
+// EXECUTE SWAP
 document.getElementById("swapBtn").addEventListener("click", async () => {
   const amount = document.getElementById("swapAmountIn").value;
   if (!amount || amount <= 0) {
@@ -477,13 +541,16 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
     return;
   }
 
+  const tokenIn = document.getElementById("tokenIn").value;
   const tokenOut = document.getElementById("tokenOut").value;
-  if (tokenOut === "CUSTOM") {
-    const contractAddr = document.getElementById("customContractInput").value;
-    if (!contractAddr || !ethers.isAddress(contractAddr)) {
-      showStatus("swapStatus", "Invalid custom token address.", "error");
-      return;
-    }
+
+  if (tokenIn === "CUSTOM_IN" && !ethers.isAddress(document.getElementById("customInAddress").value)) {
+    showStatus("swapStatus", "Invalid custom Input Token address.", "error");
+    return;
+  }
+  if (tokenOut === "CUSTOM_OUT" && !ethers.isAddress(document.getElementById("customOutAddress").value)) {
+    showStatus("swapStatus", "Invalid custom Output Token address.", "error");
+    return;
   }
 
   const btn = document.getElementById("swapBtn");
@@ -505,7 +572,7 @@ document.getElementById("swapBtn").addEventListener("click", async () => {
   }
 });
 
-// LUCKY GAME
+// GAME
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
