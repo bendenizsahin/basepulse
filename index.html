@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Basepulse</title>
-<!-- Ethers.js v6 Güvenli CDN Bağlantısı -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <style>
   :root {
@@ -332,120 +331,75 @@ const GM_STREAK_ABI = [
   "function getBadges(address user) view returns (bool[] owned, uint256[] milestoneDays)"
 ];
 
-const ONCHAIN_MESSAGES_ABI = [
-  "function postMessage(string text) external",
-  "function messageFee() view returns (uint256)",
-  "function getRecentMessages(uint256 offset, uint256 limit) view returns (address[] authors, string[] texts, uint256[] timestamps)"
-];
-
-const USDC_ABI = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-
 let provider, signer, userAddress;
-let gmContract, messagesContract, usdcContract;
+let gmContract;
 let countdownInterval;
 
-// Tüm DOM elamanları yüklendikten sonra event listener ekliyoruz
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("connectBtn");
-  if (btn) {
-    btn.addEventListener("click", connectWallet);
-  }
+  if (btn) btn.addEventListener("click", connectWallet);
 });
 
 async function connectWallet() {
-  showStatus("gmStatus", "Connecting to wallet...", "info");
+  showStatus("gmStatus", "Opening wallet...", "info");
 
-  if (typeof window.ethereum === "undefined") {
-    alert("MetaMask or Coinbase Wallet is required to use this app.");
-    showStatus("gmStatus", "No Web3 wallet extension found.", "error");
+  if (!window.ethereum) {
+    alert("MetaMask or Coinbase Wallet is required!");
+    showStatus("gmStatus", "No Web3 wallet found.", "error");
     return;
   }
 
-  let injected = window.ethereum;
-  if (window.ethereum?.providers?.length) {
-    injected = window.ethereum.providers.find(p => p.isMetaMask) || window.ethereum.providers[0];
-  }
-
   try {
-    const accounts = await injected.request({ method: "eth_requestAccounts" });
+    // 1. Doğrudan hesap iste (Asılı kalmayı önler)
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     userAddress = accounts[0];
 
-    if (typeof ethers === "undefined") {
-      alert("Ethers.js library failed to load. Check your internet connection or adblocker.");
-      showStatus("gmStatus", "Ethers kütüphanesi yüklenemedi.", "error");
-      return;
-    }
-
-    provider = new ethers.BrowserProvider(injected);
-    signer = await provider.getSigner();
-
-    const network = await provider.getNetwork();
-    const currentChainIdHex = "0x" + network.chainId.toString(16);
-
-    if (currentChainIdHex.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
+    // 2. Ağ Kontrolü
+    const currentChainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (currentChainId.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
       try {
-        await injected.request({
+        await window.ethereum.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: CONFIG.chainIdHex }]
         });
       } catch (switchError) {
         if (switchError.code === 4902) {
-          try {
-            await injected.request({
-              method: "wallet_addEthereumChain",
-              params: [{
-                chainId: CONFIG.chainIdHex,
-                chainName: CONFIG.chainName,
-                rpcUrls: [CONFIG.rpcUrl],
-                nativeCurrency: CONFIG.nativeCurrency,
-                blockExplorerUrls: [CONFIG.blockExplorerUrl]
-              }]
-            });
-          } catch (addError) {
-            showStatus("gmStatus", "Ağ eklenemedi.", "error");
-            return;
-          }
-        } else {
-          showStatus("gmStatus", "Lütfen cüzdanınızdan Base ağını onaylayın.", "error");
-          return;
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: CONFIG.chainIdHex,
+              chainName: CONFIG.chainName,
+              rpcUrls: [CONFIG.rpcUrl],
+              nativeCurrency: CONFIG.nativeCurrency,
+              blockExplorerUrls: [CONFIG.blockExplorerUrl]
+            }]
+          });
         }
       }
+    }
+
+    // 3. Ethers Yapılandırması
+    if (window.ethers) {
+      provider = new ethers.BrowserProvider(window.ethereum);
+      signer = await provider.getSigner();
+      gmContract = new ethers.Contract(CONFIG.contracts.gmStreak, GM_STREAK_ABI, signer);
+      refreshStreakInfo();
     }
 
     const connectBtn = document.getElementById("connectBtn");
     connectBtn.textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     connectBtn.classList.add("connected");
 
-    initContracts();
-    refreshStreakInfo();
-
     document.getElementById("checkInBtn").disabled = false;
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("swapBtn").disabled = false;
     document.getElementById("checkInBtn").textContent = "GM ☀️";
-    document.getElementById("postMsgBtn").textContent = "Post (0.001 USDC)";
-    document.getElementById("swapBtn").textContent = "Swap";
     
-    showStatus("gmStatus", "Wallet connected successfully!", "success");
+    showStatus("gmStatus", "Wallet Connected!", "success");
 
   } catch (err) {
-    console.error("Connection Error:", err);
-    showStatus("gmStatus", "Error: " + (err.message || "User rejected connection"), "error");
-  }
-}
-
-function initContracts() {
-  if (CONFIG.contracts.gmStreak && signer) {
-    gmContract = new ethers.Contract(CONFIG.contracts.gmStreak, GM_STREAK_ABI, signer);
-  }
-  if (CONFIG.contracts.onchainMessages && signer) {
-    messagesContract = new ethers.Contract(CONFIG.contracts.onchainMessages, ONCHAIN_MESSAGES_ABI, signer);
-  }
-  if (CONFIG.contracts.usdc && signer) {
-    usdcContract = new ethers.Contract(CONFIG.contracts.usdc, USDC_ABI, signer);
+    console.error(err);
+    showStatus("gmStatus", "Error: " + (err.message || "Failed to connect"), "error");
   }
 }
 
@@ -459,7 +413,7 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
-// GM Streak
+// GM Check-in
 document.getElementById("checkInBtn").addEventListener("click", doCheckIn);
 
 async function refreshStreakInfo() {
@@ -516,10 +470,10 @@ async function doCheckIn() {
   if (!gmContract) return;
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
-  btn.textContent = "Confirm in wallet...";
+  btn.textContent = "Confirming...";
   try {
     const tx = await gmContract.checkIn();
-    showStatus("gmStatus", "Transaction sent, waiting for confirmation...", "info");
+    showStatus("gmStatus", "Transaction sent...", "info");
     await tx.wait();
     showStatus("gmStatus", "Check-in successful! 🎉", "success");
     refreshStreakInfo();
@@ -527,97 +481,15 @@ async function doCheckIn() {
     console.error(err);
     btn.disabled = false;
     btn.textContent = "GM ☀️";
-    showStatus("gmStatus", "Error: " + (err.reason || err.message || "Transaction failed"), "error");
+    showStatus("gmStatus", "Transaction canceled or failed", "error");
   }
 }
 
-// Messages
-const msgInput = document.getElementById("msgInput");
-msgInput.addEventListener("input", () => {
-  document.getElementById("charCount").textContent = msgInput.value.length;
-});
-
-document.getElementById("postMsgBtn").addEventListener("click", postMessage);
-
-async function postMessage() {
-  if (!messagesContract || !usdcContract) {
-    showStatus("msgStatus", "Messages contract not configured yet.", "error");
-    return;
-  }
-  const text = msgInput.value.trim();
-  if (!text) return;
-
-  const btn = document.getElementById("postMsgBtn");
-  btn.disabled = true;
-  try {
-    const fee = await messagesContract.messageFee();
-    const allowance = await usdcContract.allowance(userAddress, CONFIG.contracts.onchainMessages);
-
-    if (allowance < fee) {
-      btn.textContent = "Approving USDC...";
-      showStatus("msgStatus", "Step 1: confirm the USDC approval...", "info");
-      const approveTx = await usdcContract.approve(CONFIG.contracts.onchainMessages, fee * 1000n);
-      await approveTx.wait();
-    }
-
-    btn.textContent = "Sending message...";
-    showStatus("msgStatus", "Sending your message...", "info");
-    const tx = await messagesContract.postMessage(text);
-    await tx.wait();
-
-    showStatus("msgStatus", "Message posted! 🎉", "success");
-    msgInput.value = "";
-    document.getElementById("charCount").textContent = "0";
-    loadRecentMessages();
-  } catch (err) {
-    console.error(err);
-    showStatus("msgStatus", "Error: " + (err.reason || err.message || "Transaction failed"), "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Post (0.001 USDC)";
-  }
-}
-
-async function loadRecentMessages() {
-  if (!messagesContract) return;
-  try {
-    const result = await messagesContract.getRecentMessages(0, 20);
-    const list = document.getElementById("messageList");
-    list.innerHTML = "";
-    for (let i = 0; i < result.texts.length; i++) {
-      const item = document.createElement("div");
-      item.className = "message-item";
-      const author = result.authors[i];
-      const time = new Date(Number(result.timestamps[i]) * 1000).toLocaleString();
-      item.innerHTML = `
-        <div class="author">${author.slice(0,6)}...${author.slice(-4)}</div>
-        <div class="text">${escapeHtml(result.texts[i])}</div>
-        <div class="time">${time}</div>
-      `;
-      list.appendChild(item);
-    }
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-// Swap
-document.getElementById("swapBtn").addEventListener("click", () => {
-  showStatus("swapStatus", "Swap contract not deployed yet.", "info");
-});
-
-// Helper
 function showStatus(elId, message, type) {
   const el = document.getElementById(elId);
   if (!el) return;
   el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
-  setTimeout(() => { el.innerHTML = ""; }, 6000);
+  setTimeout(() => { el.innerHTML = ""; }, 5000);
 }
 </script>
 </body>
