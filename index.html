@@ -129,7 +129,6 @@
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
-  /* ANIMASYONLAR VE EK EKRAN ELEMANLARI */
   .spinner {
     width: 16px;
     height: 16px;
@@ -144,7 +143,6 @@
     100% { transform: rotate(360deg); }
   }
 
-  /* BINGO / LUCKY SPINNER */
   .bingo-display {
     display: flex;
     justify-content: center;
@@ -208,7 +206,7 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee (~$0.0001) sent to app developer.</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee sent to contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -224,7 +222,7 @@
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee: ~$0.0001 ETH</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee sent to contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
@@ -235,21 +233,30 @@
   <!-- DEPLOY CONTRACT -->
   <section id="tab-deploy" class="hidden">
     <div class="card">
-      <h2>Smart Contract Deployer</h2>
-      <input type="text" id="contractName" placeholder="Contract Name (e.g. MyToken)">
-      <input type="text" id="contractSymbol" placeholder="Symbol (e.g. MTK)">
-      <button class="btn-primary" id="deployBtn" disabled><span>Deploy Sample Contract</span></button>
+      <h2>Smart Contract Admin</h2>
+      <p style="font-size:12px; color:var(--text-dim);">Kontrat üzerinde biriken mikro ücretleri cüzdanınıza çekin.</p>
+      <button class="btn-primary" id="withdrawBtn" disabled><span>Withdraw Fees to Main Wallet</span></button>
       <div id="deployStatus"></div>
     </div>
   </section>
 </div>
 
 <script>
-const OWNER_WALLET = "0x08D63f8716BA47a306aac7133BE070a6156a6309"; 
-const MICRO_FEE_ETH = "0.00000004"; 
+// Sizin Deploy Ettiğiniz Kontrat Adresi
+const CONTRACT_ADDRESS = "0xe15AbE26451547057A23AF28ADF782b69aaFD633"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-let provider, signer, userAddress;
+// Kontratınızın ABI Tanımlamaları
+const CONTRACT_ABI = [
+  "function checkIn() external payable",
+  "function postMessage(string calldata _message) external payable",
+  "function playGame(uint8 _guess) external payable returns (bool won)",
+  "function withdraw() external",
+  "function microFee() view returns (uint256)",
+  "function streakCount(address) view returns (uint256)"
+];
+
+let provider, signer, userAddress, pulseContract;
 let localStreak = parseInt(localStorage.getItem("base_streak") || "0");
 let lastCheckInDay = localStorage.getItem("base_last_checkin") || "";
 let bingoInterval = null;
@@ -310,6 +317,9 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
 
+    // Kontrat Bağlantısı Kuruluyor
+    pulseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
     const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     const cb = document.getElementById("connectBtn");
     cb.textContent = shortAddr;
@@ -327,7 +337,7 @@ async function connectWallet() {
 
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
-    document.getElementById("deployBtn").disabled = false;
+    document.getElementById("withdrawBtn").disabled = false;
 
   } catch (err) {
     console.error(err);
@@ -335,7 +345,7 @@ async function connectWallet() {
   }
 }
 
-// GM CHECK-IN
+// GM CHECK-IN (Kontrat Çağrısı)
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const today = getTodayUTCDate();
   if (lastCheckInDay === today) return;
@@ -343,47 +353,50 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
   try {
-    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
+    const fee = await pulseContract.microFee();
+    const tx = await pulseContract.checkIn({ value: fee });
     await tx.wait();
+
     localStreak += 1;
     lastCheckInDay = today;
     localStorage.setItem("base_streak", localStreak);
     localStorage.setItem("base_last_checkin", today);
     document.getElementById("streakNum").textContent = localStreak;
     btn.innerHTML = `<span>Checked in today ✅</span>`;
-    showStatus("gmStatus", "GM Checked-in successfully on Base! 🎉", "success");
+    showStatus("gmStatus", "GM Checked-in on contract successfully! 🎉", "success");
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = `<span>GM Check-in ☀️</span>`;
-    showStatus("gmStatus", "Transaction failed.", "error");
+    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
   }
 });
 
-// MESSAGES (ANIMASYONLU)
+// MESSAGES (Kontrat Çağrısı)
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
   
   const btn = document.getElementById("postMsgBtn");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Awaiting Wallet Approval...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Approval...</span>`;
 
   try {
-    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
+    const fee = await pulseContract.microFee();
+    const tx = await pulseContract.postMessage(msg, { value: fee });
     btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
     
     await tx.wait();
     document.getElementById("msgInput").value = "";
-    showStatus("msgStatus", "Message recorded onchain! 🚀", "success");
+    showStatus("msgStatus", "Message recorded on smart contract! 🚀", "success");
   } catch (err) {
-    showStatus("msgStatus", "Transaction failed.", "error");
+    showStatus("msgStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span id="postMsgBtnText">Post Message</span>`;
   }
 });
 
-// LUCKY GAME (BINGO ANIMASYONLU)
+// LUCKY GAME (Kontrat Çağrısı)
 document.getElementById("playGameBtn").addEventListener("click", async () => {
   const num = document.getElementById("guessInput").value;
   if(!num) return;
@@ -392,20 +405,19 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   const bingoEl = document.getElementById("bingoNum");
 
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Spinning Wheel...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Executing Contract...</span>`;
   
-  // Bingo Sayı Çarkı Başlasın
   bingoEl.classList.add("rolling");
   bingoInterval = setInterval(() => {
     bingoEl.textContent = Math.floor(Math.random() * 10) + 1;
   }, 60);
 
   try {
-    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
-    btn.innerHTML = `<span class="spinner"></span> <span>Waiting Result...</span>`;
+    const fee = await pulseContract.microFee();
+    const tx = await pulseContract.playGame(num, { value: fee });
+    btn.innerHTML = `<span class="spinner"></span> <span>Waiting Block...</span>`;
     await tx.wait();
 
-    // İşlem Onaylandı, Çarkı Durdur
     clearInterval(bingoInterval);
     bingoEl.classList.remove("rolling");
 
@@ -421,29 +433,27 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
     clearInterval(bingoInterval);
     bingoEl.classList.remove("rolling");
     bingoEl.textContent = "?";
-    showStatus("gameStatus", "Game transaction rejected.", "error");
+    showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span id="playGameBtnText">Play & Win</span>`;
   }
 });
 
-// DEPLOY CONTRACT
-document.getElementById("deployBtn").addEventListener("click", async () => {
-  const name = document.getElementById("contractName").value || "BaseToken";
-  const symbol = document.getElementById("contractSymbol").value || "BS";
-  const btn = document.getElementById("deployBtn");
+// CONTRACT WITHDRAW (Sadece Kontrat Sahibi İçi)
+document.getElementById("withdrawBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("withdrawBtn");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Deploying...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Withdrawing...</span>`;
   try {
-    const tx = await signer.sendTransaction({ to: OWNER_WALLET, value: ethers.parseEther(MICRO_FEE_ETH) });
+    const tx = await pulseContract.withdraw();
     await tx.wait();
-    showStatus("deployStatus", `Contract '${name}' (${symbol}) deployed!`, "success");
+    showStatus("deployStatus", "Accumulated fees successfully withdrawn to your wallet!", "success");
   } catch (err) {
-    showStatus("deployStatus", "Deployment failed.", "error");
+    showStatus("deployStatus", "Withdraw failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<span>Deploy Sample Contract</span>`;
+    btn.innerHTML = `<span>Withdraw Fees to Main Wallet</span>`;
   }
 });
 
