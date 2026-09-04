@@ -212,7 +212,6 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -228,7 +227,6 @@
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
@@ -241,7 +239,7 @@
     <div class="card">
       <h2>1. Mint Morebase Pass NFT</h2>
       <p style="font-size:12px; color:var(--text-dim);">Mint your official Morebase Pass directly on Base Mainnet.</p>
-      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.000001 ETH)</span></button>
+      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass</span></button>
       <div id="mintStatus"></div>
     </div>
 
@@ -278,24 +276,19 @@
 
 <script>
 const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
-const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
-
-// Base Builder Code (bc_sirk81a6) Hex Dizgisi (0x öneki olmadan)
+const BASE_CHAIN_ID_HEX = "0x2105"; // Base Mainnet (8453)
 const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
 
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
   "function playGame(uint8 _guess) external payable returns (bool won)",
-  "function mintMorebasePass() external payable",
-  "function microFee() view returns (uint256)",
-  "function nftMintFee() view returns (uint256)"
+  "function mintMorebasePass() external payable"
 ];
 
 let provider, signer, userAddress, pulseContract;
 let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
 
-// Calldata sonuna Builder Code'u güvenli şekilde ekleyen yardımcı fonksiyon
 function appendBuilderCode(rawCalldata) {
   let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
   return "0x" + cleanData + BUILDER_CODE_HEX;
@@ -314,6 +307,14 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     });
   });
+
+  if (window.ethereum) {
+    window.ethereum.on('chainChanged', () => window.location.reload());
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) window.location.reload();
+      else connectWallet();
+    });
+  }
 });
 
 function getTodayUTCString() {
@@ -357,16 +358,33 @@ function startUTCTimer() {
 
 async function connectWallet() {
   if (!window.ethereum) {
-    alert("Please install a Web3 wallet!");
+    alert("Please install a Web3 wallet like MetaMask or Coinbase Wallet!");
     return;
   }
   try {
     const currentChain = await window.ethereum.request({ method: "eth_chainId" });
-    if (currentChain.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CONFIG.chainIdHex }]
-      });
+    if (currentChain.toLowerCase() !== BASE_CHAIN_ID_HEX.toLowerCase()) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: BASE_CHAIN_ID_HEX }]
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: BASE_CHAIN_ID_HEX,
+              chainName: "Base Mainnet",
+              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://mainnet.base.org"],
+              blockExplorerUrls: ["https://basescan.org"]
+            }]
+          });
+        } else {
+          throw switchError;
+        }
+      }
     }
 
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -391,7 +409,7 @@ async function connectWallet() {
 
   } catch (err) {
     console.error(err);
-    alert("Connection rejected.");
+    alert("Connection error: " + (err.message || "User rejected"));
   }
 }
 
@@ -401,17 +419,13 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
     const baseCalldata = pulseContract.interface.encodeFunctionData("checkIn");
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
-      gasLimit: 120000
+      value: 0
     });
     await tx.wait();
 
@@ -420,7 +434,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     localStorage.setItem(`morebase_last_checkin_${userAddress}`, getTodayUTCString());
     
     document.getElementById("streakNum").textContent = localStreak;
-    showStatus("gmStatus", "GM Checked-in on contract successfully! 🎉", "success");
+    showStatus("gmStatus", "GM Checked-in on Base successfully! 🎉", "success");
     checkDailyGMStatus();
   } catch (err) {
     showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
@@ -428,28 +442,19 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   }
 });
 
-// MINT MOREBASE PASS NFT (0.000001 ETH)
+// MINT MOREBASE PASS NFT
 document.getElementById("mintNftBtn").addEventListener("click", async () => {
   const btn = document.getElementById("mintNftBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Minting Pass...</span>`;
   try {
-    let fee = ethers.parseEther("0.000001");
-    try {
-      const contractFee = await pulseContract.nftMintFee();
-      if (contractFee && contractFee < fee) {
-        fee = contractFee;
-      }
-    } catch(e) {}
-
     const baseCalldata = pulseContract.interface.encodeFunctionData("mintMorebasePass");
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
-      gasLimit: 150000
+      value: 0
     });
     await tx.wait();
     showStatus("mintStatus", "Morebase Pass NFT Minted Successfully! 🎨", "success");
@@ -457,26 +462,39 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<span>Mint Morebase Pass (0.000001 ETH)</span>`;
+    btn.innerHTML = `<span>Mint Morebase Pass</span>`;
   }
 });
 
 // CREATE NFT COLLECTION DEPLOY
 document.getElementById("createNftBtn").addEventListener("click", async () => {
   const btn = document.getElementById("createNftBtn");
+  const name = document.getElementById("nftNameInput").value.trim();
+  const symbol = document.getElementById("nftSymbolInput").value.trim();
+  const uri = document.getElementById("nftUriInput").value.trim();
+
+  if (!name || !symbol || !uri) {
+    showStatus("createNftStatus", "Please fill in Name, Symbol, and Metadata URI.", "error");
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Deploying NFT...</span>`;
 
   try {
-    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const finalBytecode = appendBuilderCode(rawBytecode);
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    const encodedParams = abiCoder.encode(["string", "string", "string"], [name, symbol, uri]);
+    const cleanParamsHex = encodedParams.startsWith("0x") ? encodedParams.slice(2) : encodedParams;
+
+    const baseBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const finalBytecode = appendBuilderCode(baseBytecode + cleanParamsHex);
 
     const tx = await signer.sendTransaction({
       data: finalBytecode
     });
     await tx.wait();
     
-    showStatus("createNftStatus", `NFT Collection Deployed with Builder Code!`, "success");
+    showStatus("createNftStatus", `Custom NFT Collection Deployed on Base!`, "success");
   } catch (err) {
     showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -500,7 +518,7 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
     });
     await tx.wait();
     
-    showStatus("deployStatus", `Micro-Contract Deployed with Builder Code!`, "success");
+    showStatus("deployStatus", `Micro-Contract Deployed to Base!`, "success");
   } catch (err) {
     showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -515,25 +533,20 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   if (!msg) return;
   const btn = document.getElementById("postMsgBtn");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Approval...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Processing...</span>`;
 
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
     const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
     const finalData = appendBuilderCode(baseCalldata);
 
-    btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
-      gasLimit: 120000
+      value: 0
     });
     await tx.wait();
     document.getElementById("msgInput").value = "";
-    showStatus("msgStatus", "Message recorded on smart contract! 🚀", "success");
+    showStatus("msgStatus", "Message recorded on Base smart contract! 🚀", "success");
   } catch (err) {
     showStatus("msgStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
@@ -557,17 +570,13 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   }, 60);
 
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-
     const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [num]);
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
-      gasLimit: 120000
+      value: 0
     });
     await tx.wait();
 
@@ -576,9 +585,9 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
     bingoEl.textContent = winningNumber;
 
     if (parseInt(num) === winningNumber) {
-      showStatus("gameStatus", `Jackpot! Winning number was ${winningNumber} 🏆`, "success");
+      showStatus("gameStatus", `Jackpot! Lucky number was ${winningNumber} 🏆`, "success");
     } else {
-      showStatus("gameStatus", `Winning number was ${winningNumber}. Try again!`, "info");
+      showStatus("gameStatus", `Lucky number was ${winningNumber}. Try again!`, "info");
     }
   } catch (err) {
     clearInterval(bingoInterval);
