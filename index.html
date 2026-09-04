@@ -280,6 +280,9 @@
 const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
+// Base Builder Code (bc_sirk81a6) ERC-8021 Suffix
+const BASE_BUILDER_SUFFIX = "0x62635f7369726b383161360080218021802180218021802180218021";
+
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
@@ -395,7 +398,13 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
     
-    const tx = await pulseContract.checkIn({ value: fee, gasLimit: 120000 });
+    const txData = pulseContract.interface.encodeFunctionData("checkIn");
+    const tx = await signer.sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      value: fee,
+      gasLimit: 120000
+    });
     await tx.wait();
 
     localStreak += 1;
@@ -426,7 +435,13 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     } catch(e) {
       // fallback to 0.000001 ETH if view function fails
     }
-    const tx = await pulseContract.mintMorebasePass({ value: fee, gasLimit: 150000 });
+    const txData = pulseContract.interface.encodeFunctionData("mintMorebasePass");
+    const tx = await signer.sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      value: fee,
+      gasLimit: 150000
+    });
     await tx.wait();
     showStatus("mintStatus", "Morebase Pass NFT Minted Successfully! 🎨", "success");
   } catch (err) {
@@ -449,12 +464,12 @@ document.getElementById("createNftBtn").addEventListener("click", async () => {
 
   try {
     const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const factory = new ethers.ContractFactory([], bytecode, signer);
-    const contract = await factory.deploy();
-    await contract.waitForDeployment();
+    const tx = await signer.sendTransaction({
+      data: bytecode + BASE_BUILDER_SUFFIX.slice(2)
+    });
+    await tx.wait();
     
-    const deployedAddress = await contract.getAddress();
-    showStatus("createNftStatus", `NFT Collection Deployed! Address: ${deployedAddress.slice(0,10)}...`, "success");
+    showStatus("createNftStatus", `NFT Collection Deployed via Builder Code!`, "success");
   } catch (err) {
     showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -471,12 +486,12 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
 
   try {
     const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const factory = new ethers.ContractFactory([], bytecode, signer);
-    const contract = await factory.deploy();
-    await contract.waitForDeployment();
+    const tx = await signer.sendTransaction({
+      data: bytecode + BASE_BUILDER_SUFFIX.slice(2)
+    });
+    await tx.wait();
     
-    const deployedAddress = await contract.getAddress();
-    showStatus("deployStatus", `Contract Deployed! Address: ${deployedAddress.slice(0,10)}...`, "success");
+    showStatus("deployStatus", `Contract Deployed via Builder Code!`, "success");
   } catch (err) {
     showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -496,8 +511,14 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   try {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    const tx = await pulseContract.postMessage(msg, { value: fee, gasLimit: 120000 });
+    const txData = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
     btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
+    const tx = await signer.sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      value: fee,
+      gasLimit: 120000
+    });
     await tx.wait();
     document.getElementById("msgInput").value = "";
     showStatus("msgStatus", "Message recorded on smart contract! 🚀", "success");
@@ -526,7 +547,13 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   try {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    const tx = await pulseContract.playGame(num, { value: fee, gasLimit: 120000 });
+    const txData = pulseContract.interface.encodeFunctionData("playGame", [num]);
+    const tx = await signer.sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      value: fee,
+      gasLimit: 120000
+    });
     await tx.wait();
 
     clearInterval(bingoInterval);
