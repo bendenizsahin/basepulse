@@ -93,6 +93,20 @@
     letter-spacing: 0.5px;
   }
 
+  .guide-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .guide-box a { color: var(--blue-light); text-decoration: none; font-weight: 600; }
+  .guide-box a:hover { text-decoration: underline; }
+  .guide-box ol { margin: 6px 0 0; padding-left: 18px; }
+
   .btn-primary {
     width: 100%;
     background: var(--blue);
@@ -246,6 +260,28 @@
       <button class="btn-primary" id="deployUserContractBtn" disabled><span>Deploy Micro-Contract</span></button>
       <div id="deployStatus"></div>
     </div>
+
+    <!-- 3. CREATE NFT COLLECTION -->
+    <div class="card">
+      <h2>3. Create Custom NFT Collection</h2>
+      <p style="font-size:12px; color:var(--text-dim);">Deploy your own ERC-721 NFT Collection directly to Base Mainnet.</p>
+      
+      <div class="guide-box">
+        <strong>Quick Guide: How to deploy your collection</strong>
+        <ol>
+          <li>Upload your NFT image & metadata JSON to <a href="https://app.pinata.cloud" target="_blank" rel="noopener">Pinata IPFS Studio</a>.</li>
+          <li>Copy your IPFS URL (e.g., <code>ipfs://Qm...</code> or <code>https://gateway.pinata.cloud/ipfs/...</code>).</li>
+          <li>Fill in your Collection Name, Symbol, and Metadata URI below.</li>
+          <li>Click <strong>Deploy NFT Contract</strong> to deploy on Base.</li>
+        </ol>
+      </div>
+
+      <input type="text" id="nftNameInput" placeholder="Collection Name (e.g., Base Monkeys)">
+      <input type="text" id="nftSymbolInput" placeholder="Symbol (e.g., BMNK)">
+      <input type="text" id="nftUriInput" placeholder="Metadata URI (ipfs://... or https://...)">
+      <button class="btn-primary" id="createNftBtn" disabled><span>Deploy NFT Contract</span></button>
+      <div id="createNftStatus"></div>
+    </div>
   </section>
 </div>
 
@@ -336,6 +372,7 @@ async function connectWallet() {
     document.getElementById("playGameBtn").disabled = false;
     document.getElementById("mintNftBtn").disabled = false;
     document.getElementById("deployUserContractBtn").disabled = false;
+    document.getElementById("createNftBtn").disabled = false;
 
     document.getElementById("gmDisconnectedView").classList.add("hidden");
     document.getElementById("gmConnectedView").classList.remove("hidden");
@@ -497,6 +534,39 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span>Deploy Micro-Contract</span>`;
+  }
+});
+
+// CREATE CUSTOM NFT COLLECTION
+document.getElementById("createNftBtn").addEventListener("click", async () => {
+  const name = document.getElementById("nftNameInput").value.trim();
+  const symbol = document.getElementById("nftSymbolInput").value.trim();
+  const uri = document.getElementById("nftUriInput").value.trim();
+
+  if (!name || !symbol || !uri) {
+    showStatus("createNftStatus", "Please fill in Name, Symbol, and Metadata URI", "error");
+    return;
+  }
+
+  const btn = document.getElementById("createNftBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Deploying NFT Collection...</span>`;
+
+  try {
+    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const finalBytecode = appendBuilderCode(rawBytecode);
+
+    const tx = await signer.sendTransaction({
+      data: finalBytecode
+    });
+    await tx.wait();
+
+    showStatus("createNftStatus", `NFT Collection "${name}" Deployed to Base! 🖼️`, "success");
+  } catch (err) {
+    showStatus("createNftStatus", "Deploy failed: " + (err.reason || err.message), "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>Deploy NFT Contract</span>`;
   }
 });
 
