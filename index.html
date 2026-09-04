@@ -199,7 +199,6 @@
 <script>
 const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
 const CONFIG = { chainIdHex: "0x2105" }; 
-const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
 
 const CONTRACT_ABI = [
   "function checkIn() external payable",
@@ -207,12 +206,7 @@ const CONTRACT_ABI = [
   "function mintMorebasePass() external payable"
 ];
 
-let provider, signer, userAddress;
-
-function appendBuilderCode(rawCalldata) {
-  let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
-  return "0x" + cleanData + BUILDER_CODE_HEX;
-}
+let provider, signer, userAddress, contract;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -286,6 +280,7 @@ async function connectWallet() {
 
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
     document.getElementById("connectBtn").textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     document.getElementById("connectBtn").classList.add("connected");
@@ -309,15 +304,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   btn.textContent = "Checking in...";
 
   try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    const baseCalldata = contract.interface.encodeFunctionData("checkIn");
-    const finalData = appendBuilderCode(baseCalldata);
-
-    const tx = await signer.sendTransaction({
-      to: CONTRACT_ADDRESS,
-      data: finalData,
-      value: 0
-    });
+    const tx = await contract.checkIn();
     await tx.wait();
 
     let curr = parseInt(localStorage.getItem(`streak_curr_${userAddress}`) || "0") + 1;
@@ -339,9 +326,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
   try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    const baseCalldata = contract.interface.encodeFunctionData("postMessage", [msg]);
-    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata) });
+    const tx = await contract.postMessage(msg);
     await tx.wait();
     showStatus("msgStatus", "Message posted!", "success");
   } catch (err) { showStatus("msgStatus", "Failed", "error"); }
@@ -349,9 +334,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
 
 document.getElementById("mintNftBtn").addEventListener("click", async () => {
   try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    const baseCalldata = contract.interface.encodeFunctionData("mintMorebasePass");
-    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata) });
+    const tx = await contract.mintMorebasePass();
     await tx.wait();
     showStatus("mintStatus", "NFT Minted!", "success");
   } catch (err) { showStatus("mintStatus", "Failed", "error"); }
