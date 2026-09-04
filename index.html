@@ -184,13 +184,10 @@
   <section id="tab-gm">
     <div class="card">
       <h2>Daily GM Check-in</h2>
-      
-      <!-- Cüzdan Bağlı Değilken -->
       <div id="gmDisconnectedView" style="text-align: center; padding: 20px 0; color: var(--text-dim);">
         Please connect your wallet to view your on-chain streak data.
       </div>
 
-      <!-- Cüzdan Bağlandığında Görünecek Alan -->
       <div id="gmConnectedView" class="hidden">
         <div class="streak-grid">
           <div class="streak-box">
@@ -244,17 +241,7 @@
     </div>
 
     <div class="card">
-      <h2>2. Create Custom NFT Collection</h2>
-      <p style="font-size:12px; color:var(--text-dim);">Deploy your own ERC-721 NFT Contract on Base.</p>
-      <input type="text" id="nftNameInput" placeholder="NFT Name">
-      <input type="text" id="nftSymbolInput" placeholder="NFT Symbol">
-      <input type="text" id="nftUriInput" placeholder="Metadata URI">
-      <button class="btn-primary" id="createNftBtn" disabled><span>Deploy NFT Contract</span></button>
-      <div id="createNftStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>3. Deploy Micro-Contract</h2>
+      <h2>2. Deploy Micro-Contract</h2>
       <p style="font-size:12px; color:var(--text-dim);">Deploy a simple smart contract to boost your Base developer activity score.</p>
       <button class="btn-primary" id="deployUserContractBtn" disabled><span>Deploy Micro-Contract</span></button>
       <div id="deployStatus"></div>
@@ -263,7 +250,6 @@
 </div>
 
 <script>
-// YENİ DEPLOY ETTİĞİNİZ KONTRAT ADRESİNİ BURAYA YAZIN
 const CONTRACT_ADDRESS = "0xA29087aFbe3bfbc145D2ED572443a951E1cfb44c"; 
 const BASE_CHAIN_ID_HEX = "0x2105"; 
 const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
@@ -346,14 +332,11 @@ async function connectWallet() {
     cb.textContent = shortAddr;
     cb.classList.add("connected");
 
-    // Butonları aktifleştir
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
     document.getElementById("mintNftBtn").disabled = false;
-    document.getElementById("createNftBtn").disabled = false;
     document.getElementById("deployUserContractBtn").disabled = false;
 
-    // Görünümü değiştir ve On-Chain veriyi çek
     document.getElementById("gmDisconnectedView").classList.add("hidden");
     document.getElementById("gmConnectedView").classList.remove("hidden");
     
@@ -365,7 +348,6 @@ async function connectWallet() {
   }
 }
 
-// On-Chain Verileri Çekme Fonksiyonu
 async function loadOnChainStreakData() {
   if (!pulseContract || !userAddress) return;
   try {
@@ -403,20 +385,24 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     await tx.wait();
 
     showStatus("gmStatus", "GM Checked-in on Base successfully! 🎉", "success");
-    await loadOnChainStreakData();
   } catch (err) {
     showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
+  } finally {
     await loadOnChainStreakData();
   }
 });
 
 // MESSAGES
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
-  const msg = document.getElementById("msgInput").value;
-  if (!msg) return;
+  const msgInput = document.getElementById("msgInput");
+  const msg = msgInput.value.trim();
+  if (!msg) {
+    showStatus("msgStatus", "Please enter a message", "error");
+    return;
+  }
   const btn = document.getElementById("postMsgBtn");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Processing...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Posting...</span>`;
 
   try {
     const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
@@ -427,12 +413,43 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
       data: finalData
     });
     await tx.wait();
-    document.getElementById("msgInput").value = "";
+    msgInput.value = "";
     showStatus("msgStatus", "Message recorded onchain! 🚀", "success");
   } catch (err) {
     showStatus("msgStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
+    btn.innerHTML = `<span>Post Message</span>`;
+  }
+});
+
+// LUCKY GAME
+document.getElementById("playGameBtn").addEventListener("click", async () => {
+  const val = parseInt(document.getElementById("guessInput").value);
+  if (!val || val < 1 || val > 10) {
+    showStatus("gameStatus", "Please enter a number between 1 and 10", "error");
+    return;
+  }
+
+  const btn = document.getElementById("playGameBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> <span>Playing...</span>`;
+
+  try {
+    const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [val]);
+    const finalData = appendBuilderCode(baseCalldata);
+
+    const tx = await signer.sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: finalData
+    });
+    await tx.wait();
+    showStatus("gameStatus", "Transaction complete! Onchain game played. 🎲", "success");
+  } catch (err) {
+    showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>Play & Win</span>`;
   }
 });
 
@@ -455,6 +472,7 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
+    btn.innerHTML = `<span>Mint Morebase Pass</span>`;
   }
 });
 
@@ -478,6 +496,7 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
     showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
+    btn.innerHTML = `<span>Deploy Micro-Contract</span>`;
   }
 });
 
