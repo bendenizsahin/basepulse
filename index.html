@@ -263,4 +263,29 @@
         <ol style="margin:6px 0 0 16px; padding:0;">
           <li><a href="https://www.pinata.cloud/" target="_blank">Pinata.cloud</a> hesabına ücretsiz kaydolun.</li>
           <li>Görselinizi yükleyip IPFS linkini alın.</li>
-          <li>Metadata linkini yukarıdaki "Metadata URI" kısmına yapıştırarak NFT koleksiyonunuzu dağı
+          <li>Metadata linkini yukarıdaki "Metadata URI" kısmına yapıştırarak NFT koleksiyonunuzu dağıtın.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
+const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
+
+const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
+
+const CONTRACT_ABI = [
+  "function checkIn() external payable",
+  "function postMessage(string calldata _message) external payable",
+  "function playGame(uint8 _guess) external payable returns (bool won)",
+  "function mintMorebasePass() external payable",
+  "function microFee() view returns (uint256)",
+  "function nftMintFee() view returns (uint256)"
+];
+
+let provider, signer, userAddress, pulseContract;
+let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
+
+function
