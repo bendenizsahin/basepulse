@@ -196,7 +196,6 @@
     <div class="tab" data-tab="deploy">Deploy & Mint</div>
   </div>
 
-  <!-- GM STREAK -->
   <section id="tab-gm">
     <div class="card">
       <h2>Daily GM Check-in</h2>
@@ -207,12 +206,10 @@
     </div>
   </section>
 
-  <!-- MESSAGES -->
   <section id="tab-messages" class="hidden">
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -220,7 +217,6 @@
     </div>
   </section>
 
-  <!-- LUCKY GAME -->
   <section id="tab-game" class="hidden">
     <div class="card">
       <h2>Morebase Lucky Guess (1-10)</h2>
@@ -228,7 +224,6 @@
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
@@ -236,12 +231,11 @@
     </div>
   </section>
 
-  <!-- DEPLOY & MINT STUDIO -->
   <section id="tab-deploy" class="hidden">
     <div class="card">
       <h2>1. Mint Morebase Pass NFT</h2>
       <p style="font-size:12px; color:var(--text-dim);">Mint your official Morebase Pass directly on Base Mainnet.</p>
-      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.000001 ETH)</span></button>
+      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass</span></button>
       <div id="mintStatus"></div>
     </div>
 
@@ -269,333 +263,4 @@
         <ol style="margin:6px 0 0 16px; padding:0;">
           <li><a href="https://www.pinata.cloud/" target="_blank">Pinata.cloud</a> hesabına ücretsiz kaydolun.</li>
           <li>Görselinizi yükleyip IPFS linkini alın.</li>
-          <li>Metadata linkini yukarıdaki "Metadata URI" kısmına yapıştırarak NFT koleksiyonunuzu dağıtın.</li>
-        </ol>
-      </div>
-    </div>
-  </section>
-</div>
-
-<script>
-const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
-const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
-
-// Base Builder Code (bc_sirk81a6) Hex Dizgisi (0x öneki olmadan)
-const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
-
-const CONTRACT_ABI = [
-  "function checkIn() external payable",
-  "function postMessage(string calldata _message) external payable",
-  "function playGame(uint8 _guess) external payable returns (bool won)",
-  "function mintMorebasePass() external payable",
-  "function microFee() view returns (uint256)",
-  "function nftMintFee() view returns (uint256)"
-];
-
-let provider, signer, userAddress, pulseContract;
-let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
-
-// Calldata sonuna Builder Code'u güvenli şekilde ekleyen yardımcı fonksiyon
-function appendBuilderCode(rawCalldata) {
-  let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
-  return "0x" + cleanData + BUILDER_CODE_HEX;
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("connectBtn").addEventListener("click", connectWallet);
-  document.getElementById("streakNum").textContent = localStreak;
-  startUTCTimer();
-
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      document.querySelectorAll("section[id^='tab-']").forEach(s => s.classList.add("hidden"));
-      document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
-    });
-  });
-});
-
-function getTodayUTCString() {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
-}
-
-function checkDailyGMStatus() {
-  if (!userAddress) return;
-  const today = getTodayUTCString();
-  const lastCheckIn = localStorage.getItem(`morebase_last_checkin_${userAddress}`);
-  const btn = document.getElementById("checkInBtn");
-
-  if (lastCheckIn === today) {
-    btn.disabled = true;
-    btn.innerHTML = `<span>Already Checked In Today ☀️</span>`;
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = `<span>GM Check-in ☀️</span>`;
-  }
-}
-
-function startUTCTimer() {
-  setInterval(() => {
-    const now = new Date();
-    const utcNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
-    const utcNext = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
-    const diff = utcNext - utcNow;
-
-    const hours = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, '0');
-    const minutes = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
-    const seconds = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
-
-    document.getElementById("utcTimer").textContent = `${hours}:${minutes}:${seconds}`;
-
-    if (hours === "00" && minutes === "00" && seconds === "00") {
-      checkDailyGMStatus();
-    }
-  }, 1000);
-}
-
-async function connectWallet() {
-  if (!window.ethereum) {
-    alert("Please install a Web3 wallet!");
-    return;
-  }
-  try {
-    const currentChain = await window.ethereum.request({ method: "eth_chainId" });
-    if (currentChain.toLowerCase() !== CONFIG.chainIdHex.toLowerCase()) {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CONFIG.chainIdHex }]
-      });
-    }
-
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    userAddress = accounts[0];
-
-    provider = new ethers.BrowserProvider(window.ethereum);
-    signer = await provider.getSigner();
-    pulseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-    const shortAddr = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
-    const cb = document.getElementById("connectBtn");
-    cb.textContent = shortAddr;
-    cb.classList.add("connected");
-
-    document.getElementById("postMsgBtn").disabled = false;
-    document.getElementById("playGameBtn").disabled = false;
-    document.getElementById("mintNftBtn").disabled = false;
-    document.getElementById("createNftBtn").disabled = false;
-    document.getElementById("deployUserContractBtn").disabled = false;
-
-    checkDailyGMStatus();
-
-  } catch (err) {
-    console.error(err);
-    alert("Connection rejected.");
-  }
-}
-
-// GM CHECK-IN
-document.getElementById("checkInBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("checkInBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
-  try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
-    const baseCalldata = pulseContract.interface.encodeFunctionData("checkIn");
-    const finalData = appendBuilderCode(baseCalldata);
-
-    const tx = await signer.sendTransaction({
-      to: CONTRACT_ADDRESS,
-      data: finalData,
-      value: fee,
-      gasLimit: 120000
-    });
-    await tx.wait();
-
-    localStreak += 1;
-    localStorage.setItem("morebase_streak", localStreak);
-    localStorage.setItem(`morebase_last_checkin_${userAddress}`, getTodayUTCString());
-    
-    document.getElementById("streakNum").textContent = localStreak;
-    showStatus("gmStatus", "GM Checked-in on contract successfully! 🎉", "success");
-    checkDailyGMStatus();
-  } catch (err) {
-    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
-    checkDailyGMStatus();
-  }
-});
-
-// MINT MOREBASE PASS NFT (0.000001 ETH)
-document.getElementById("mintNftBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("mintNftBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Minting Pass...</span>`;
-  try {
-    let fee = ethers.parseEther("0.000001");
-    try {
-      const contractFee = await pulseContract.nftMintFee();
-      if (contractFee && contractFee < fee) {
-        fee = contractFee;
-      }
-    } catch(e) {}
-
-    const baseCalldata = pulseContract.interface.encodeFunctionData("mintMorebasePass");
-    const finalData = appendBuilderCode(baseCalldata);
-
-    const tx = await signer.sendTransaction({
-      to: CONTRACT_ADDRESS,
-      data: finalData,
-      value: fee,
-      gasLimit: 150000
-    });
-    await tx.wait();
-    showStatus("mintStatus", "Morebase Pass NFT Minted Successfully! 🎨", "success");
-  } catch (err) {
-    showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span>Mint Morebase Pass (0.000001 ETH)</span>`;
-  }
-});
-
-// CREATE NFT COLLECTION DEPLOY
-document.getElementById("createNftBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("createNftBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Deploying NFT...</span>`;
-
-  try {
-    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const finalBytecode = appendBuilderCode(rawBytecode);
-
-    const tx = await signer.sendTransaction({
-      data: finalBytecode
-    });
-    await tx.wait();
-    
-    showStatus("createNftStatus", `NFT Collection Deployed with Builder Code!`, "success");
-  } catch (err) {
-    showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span>Deploy NFT Contract</span>`;
-  }
-});
-
-// DEPLOY MICRO-CONTRACT
-document.getElementById("deployUserContractBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("deployUserContractBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Deploying...</span>`;
-
-  try {
-    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const finalBytecode = appendBuilderCode(rawBytecode);
-
-    const tx = await signer.sendTransaction({
-      data: finalBytecode
-    });
-    await tx.wait();
-    
-    showStatus("deployStatus", `Micro-Contract Deployed with Builder Code!`, "success");
-  } catch (err) {
-    showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span>Deploy Micro-Contract to Base</span>`;
-  }
-});
-
-// MESSAGES
-document.getElementById("postMsgBtn").addEventListener("click", async () => {
-  const msg = document.getElementById("msgInput").value;
-  if (!msg) return;
-  const btn = document.getElementById("postMsgBtn");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Approval...</span>`;
-
-  try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
-    const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
-    const finalData = appendBuilderCode(baseCalldata);
-
-    btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
-    const tx = await signer.sendTransaction({
-      to: CONTRACT_ADDRESS,
-      data: finalData,
-      value: fee,
-      gasLimit: 120000
-    });
-    await tx.wait();
-    document.getElementById("msgInput").value = "";
-    showStatus("msgStatus", "Message recorded on smart contract! 🚀", "success");
-  } catch (err) {
-    showStatus("msgStatus", "Transaction failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span id="postMsgBtnText">Post Message</span>`;
-  }
-});
-
-// LUCKY GAME
-document.getElementById("playGameBtn").addEventListener("click", async () => {
-  const num = document.getElementById("guessInput").value;
-  if(!num) return;
-  const btn = document.getElementById("playGameBtn");
-  const bingoEl = document.getElementById("bingoNum");
-
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Executing...</span>`;
-  
-  const bingoInterval = setInterval(() => {
-    bingoEl.textContent = Math.floor(Math.random() * 10) + 1;
-  }, 60);
-
-  try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-
-    const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [num]);
-    const finalData = appendBuilderCode(baseCalldata);
-
-    const tx = await signer.sendTransaction({
-      to: CONTRACT_ADDRESS,
-      data: finalData,
-      value: fee,
-      gasLimit: 120000
-    });
-    await tx.wait();
-
-    clearInterval(bingoInterval);
-    const winningNumber = Math.floor(Math.random() * 10) + 1;
-    bingoEl.textContent = winningNumber;
-
-    if (parseInt(num) === winningNumber) {
-      showStatus("gameStatus", `Jackpot! Winning number was ${winningNumber} 🏆`, "success");
-    } else {
-      showStatus("gameStatus", `Winning number was ${winningNumber}. Try again!`, "info");
-    }
-  } catch (err) {
-    clearInterval(bingoInterval);
-    bingoEl.textContent = "?";
-    showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<span id="playGameBtnText">Play & Win</span>`;
-  }
-});
-
-function showStatus(elId, message, type) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
-  setTimeout(() => { el.innerHTML = ""; }, 6000);
-}
-</script>
-</body>
-</html>
+          <li>Metadata linkini yukarıdaki "Metadata URI" kısmına yapıştırarak NFT koleksiyonunuzu dağı
