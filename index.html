@@ -280,8 +280,8 @@
 const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Base Builder Code (bc_sirk81a6) ERC-8021 Suffix
-const BASE_BUILDER_SUFFIX = "0x62635f7369726b383161360080218021802180218021802180218021";
+// Base Builder Code (bc_sirk81a6) Hex Dizgisi (0x öneki olmadan)
+const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
 
 const CONTRACT_ABI = [
   "function checkIn() external payable",
@@ -294,6 +294,12 @@ const CONTRACT_ABI = [
 
 let provider, signer, userAddress, pulseContract;
 let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
+
+// Calldata sonuna Builder Code'u güvenli şekilde ekleyen yardımcı fonksiyon
+function appendBuilderCode(rawCalldata) {
+  let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
+  return "0x" + cleanData + BUILDER_CODE_HEX;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
@@ -351,7 +357,7 @@ function startUTCTimer() {
 
 async function connectWallet() {
   if (!window.ethereum) {
-    alert("Please install MetaMask!");
+    alert("Please install a Web3 wallet!");
     return;
   }
   try {
@@ -398,10 +404,12 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
     
-    const txData = pulseContract.interface.encodeFunctionData("checkIn");
+    const baseCalldata = pulseContract.interface.encodeFunctionData("checkIn");
+    const finalData = appendBuilderCode(baseCalldata);
+
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
-      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      data: finalData,
       value: fee,
       gasLimit: 120000
     });
@@ -432,13 +440,14 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
       if (contractFee && contractFee < fee) {
         fee = contractFee;
       }
-    } catch(e) {
-      // fallback to 0.000001 ETH if view function fails
-    }
-    const txData = pulseContract.interface.encodeFunctionData("mintMorebasePass");
+    } catch(e) {}
+
+    const baseCalldata = pulseContract.interface.encodeFunctionData("mintMorebasePass");
+    const finalData = appendBuilderCode(baseCalldata);
+
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
-      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      data: finalData,
       value: fee,
       gasLimit: 150000
     });
@@ -454,22 +463,20 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
 
 // CREATE NFT COLLECTION DEPLOY
 document.getElementById("createNftBtn").addEventListener("click", async () => {
-  const name = document.getElementById("nftNameInput").value || "Morebase Collection";
-  const symbol = document.getElementById("nftSymbolInput").value || "MCC";
-  const uri = document.getElementById("nftUriInput").value || "ipfs://";
-
   const btn = document.getElementById("createNftBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Deploying NFT...</span>`;
 
   try {
-    const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const finalBytecode = appendBuilderCode(rawBytecode);
+
     const tx = await signer.sendTransaction({
-      data: bytecode + BASE_BUILDER_SUFFIX.slice(2)
+      data: finalBytecode
     });
     await tx.wait();
     
-    showStatus("createNftStatus", `NFT Collection Deployed via Builder Code!`, "success");
+    showStatus("createNftStatus", `NFT Collection Deployed with Builder Code!`, "success");
   } catch (err) {
     showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -485,13 +492,15 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
   btn.innerHTML = `<span class="spinner"></span> <span>Deploying...</span>`;
 
   try {
-    const bytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
+    const finalBytecode = appendBuilderCode(rawBytecode);
+
     const tx = await signer.sendTransaction({
-      data: bytecode + BASE_BUILDER_SUFFIX.slice(2)
+      data: finalBytecode
     });
     await tx.wait();
     
-    showStatus("deployStatus", `Contract Deployed via Builder Code!`, "success");
+    showStatus("deployStatus", `Micro-Contract Deployed with Builder Code!`, "success");
   } catch (err) {
     showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
   } finally {
@@ -511,11 +520,14 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   try {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    const txData = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
+    
+    const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
+    const finalData = appendBuilderCode(baseCalldata);
+
     btn.innerHTML = `<span class="spinner"></span> <span>Confirming Onchain...</span>`;
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
-      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      data: finalData,
       value: fee,
       gasLimit: 120000
     });
@@ -547,10 +559,13 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   try {
     let fee;
     try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    const txData = pulseContract.interface.encodeFunctionData("playGame", [num]);
+
+    const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [num]);
+    const finalData = appendBuilderCode(baseCalldata);
+
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
-      data: txData + BASE_BUILDER_SUFFIX.slice(2),
+      data: finalData,
       value: fee,
       gasLimit: 120000
     });
