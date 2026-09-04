@@ -425,7 +425,8 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: 0
+      value: 0,
+      gasLimit: 120000 // Güvenli gaz limiti eklendi
     });
     await tx.wait();
 
@@ -437,7 +438,7 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
     showStatus("gmStatus", "GM Checked-in on Base successfully! 🎉", "success");
     checkDailyGMStatus();
   } catch (err) {
-    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
+    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.shortMessage || err.message), "error");
     checkDailyGMStatus();
   }
 });
@@ -454,12 +455,13 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: 0
+      value: 0,
+      gasLimit: 150000
     });
     await tx.wait();
     showStatus("mintStatus", "Morebase Pass NFT Minted Successfully! 🎨", "success");
   } catch (err) {
-    showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
+    showStatus("mintStatus", "Mint failed: " + (err.reason || err.shortMessage || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span>Mint Morebase Pass</span>`;
@@ -490,13 +492,14 @@ document.getElementById("createNftBtn").addEventListener("click", async () => {
     const finalBytecode = appendBuilderCode(baseBytecode + cleanParamsHex);
 
     const tx = await signer.sendTransaction({
-      data: finalBytecode
+      data: finalBytecode,
+      gasLimit: 600000 // Deployment için yeterli gaz limiti
     });
     await tx.wait();
     
     showStatus("createNftStatus", `Custom NFT Collection Deployed on Base!`, "success");
   } catch (err) {
-    showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.message), "error");
+    showStatus("createNftStatus", "NFT Deploy failed: " + (err.reason || err.shortMessage || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span>Deploy NFT Contract</span>`;
@@ -514,13 +517,14 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
     const finalBytecode = appendBuilderCode(rawBytecode);
 
     const tx = await signer.sendTransaction({
-      data: finalBytecode
+      data: finalBytecode,
+      gasLimit: 400000
     });
     await tx.wait();
     
     showStatus("deployStatus", `Micro-Contract Deployed to Base!`, "success");
   } catch (err) {
-    showStatus("deployStatus", "Deploy failed: " + (err.reason || err.message), "error");
+    showStatus("deployStatus", "Deploy failed: " + (err.reason || err.shortMessage || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span>Deploy Micro-Contract to Base</span>`;
@@ -542,13 +546,14 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: 0
+      value: 0,
+      gasLimit: 120000
     });
     await tx.wait();
     document.getElementById("msgInput").value = "";
     showStatus("msgStatus", "Message recorded on Base smart contract! 🚀", "success");
   } catch (err) {
-    showStatus("msgStatus", "Transaction failed: " + (err.reason || err.message), "error");
+    showStatus("msgStatus", "Transaction failed: " + (err.reason || err.shortMessage || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span id="postMsgBtnText">Post Message</span>`;
@@ -576,7 +581,8 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: 0
+      value: 0,
+      gasLimit: 120000
     });
     await tx.wait();
 
@@ -592,7 +598,7 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   } catch (err) {
     clearInterval(bingoInterval);
     bingoEl.textContent = "?";
-    showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
+    showStatus("gameStatus", "Transaction failed: " + (err.reason || err.shortMessage || err.message), "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<span id="playGameBtnText">Play & Win</span>`;
