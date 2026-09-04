@@ -74,7 +74,6 @@
     color: var(--text-dim);
     cursor: pointer;
     white-space: nowrap;
-    transition: all .15s;
   }
   .tab.active { background: var(--blue); color: white; }
 
@@ -90,7 +89,6 @@
     font-size: 14px;
     color: var(--text-dim);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
 
   .btn-primary {
@@ -103,13 +101,7 @@
     font-weight: 700;
     font-size: 14px;
     cursor: pointer;
-    transition: opacity .15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
   }
-  .btn-primary:hover { opacity: .88; }
   .btn-primary:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
 
   textarea, input {
@@ -119,12 +111,10 @@
     color: var(--text);
     border-radius: 10px;
     padding: 12px;
-    font-family: inherit;
     font-size: 14px;
     outline: none;
     margin-bottom: 10px;
   }
-  textarea { resize: none; min-height: 80px; }
 
   .streak-container {
     display: flex;
@@ -137,46 +127,13 @@
     padding: 16px;
   }
   .streak-box { text-align: center; }
-  .streak-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .streak-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
   .streak-num { font-size: 40px; font-weight: 800; color: var(--blue-light); margin-top: 4px; }
 
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
-  .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    display: inline-block;
-  }
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
-  .bingo-display {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    height: 70px;
-    margin-bottom: 14px;
-    overflow: hidden;
-  }
-  .bingo-number {
-    font-size: 38px;
-    font-weight: 900;
-    color: var(--blue-light);
-    text-shadow: 0 0 10px rgba(76, 139, 255, 0.5);
-  }
-
-  .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
-  .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
+  .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; }
   .status-msg.success { background: rgba(46,204,113,0.1); color: var(--green); }
   .status-msg.error { background: rgba(255,92,92,0.1); color: var(--red); }
   .hidden { display: none !important; }
@@ -192,16 +149,14 @@
   <div class="tabs">
     <div class="tab active" data-tab="gm">GM Streak</div>
     <div class="tab" data-tab="messages">Messages</div>
-    <div class="tab" data-tab="game">Lucky Game</div>
     <div class="tab" data-tab="deploy">Deploy & Mint</div>
   </div>
 
-  <!-- GM STREAK -->
   <section id="tab-gm">
     <div class="card">
       <h2>Daily GM Check-in</h2>
       
-      <div id="noWalletStreak" style="text-align: center; padding: 30px 0; color: var(--text-dim); font-size: 14px;">
+      <div id="noWalletStreak" style="text-align: center; padding: 30px 0; color: var(--text-dim);">
         🔒 Connect wallet to view your GM streaks
       </div>
 
@@ -218,12 +173,11 @@
       </div>
 
       <div class="timer-box">Resets in: <span id="utcTimer">--:--:--</span> (UTC 00:00)</div>
-      <button class="btn-primary" id="checkInBtn" disabled><span>Connect Wallet First</span></button>
+      <button class="btn-primary" id="checkInBtn" disabled>Connect Wallet First</button>
       <div id="gmStatus"></div>
     </div>
   </section>
 
-  <!-- MESSAGES -->
   <section id="tab-messages" class="hidden">
     <div class="card">
       <h2>Onchain Wall</h2>
@@ -233,40 +187,11 @@
     </div>
   </section>
 
-  <!-- LUCKY GAME -->
-  <section id="tab-game" class="hidden">
-    <div class="card">
-      <h2>Morebase Lucky Guess (1-10)</h2>
-      <div class="bingo-display">
-        <div class="bingo-number" id="bingoNum">?</div>
-      </div>
-      <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <button class="btn-primary" id="playGameBtn" disabled>Play & Win</button>
-      <div id="gameStatus"></div>
-    </div>
-  </section>
-
-  <!-- DEPLOY & MINT STUDIO -->
   <section id="tab-deploy" class="hidden">
     <div class="card">
       <h2>1. Mint Morebase Pass NFT</h2>
       <button class="btn-primary" id="mintNftBtn" disabled>Mint Morebase Pass</button>
       <div id="mintStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>2. Create Custom NFT Collection</h2>
-      <input type="text" id="nftNameInput" placeholder="NFT Name">
-      <input type="text" id="nftSymbolInput" placeholder="NFT Symbol">
-      <input type="text" id="nftUriInput" placeholder="Metadata URI">
-      <button class="btn-primary" id="createNftBtn" disabled>Deploy NFT Contract</button>
-      <div id="createNftStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>3. Deploy Micro-Contract</h2>
-      <button class="btn-primary" id="deployUserContractBtn" disabled>Deploy Micro-Contract to Base</button>
-      <div id="deployStatus"></div>
     </div>
   </section>
 </div>
@@ -279,11 +204,10 @@ const BUILDER_CODE_HEX = "62635f7369726b3831613600802180218021802180218021802180
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
-  "function playGame(uint8 _guess) external payable returns (bool won)",
   "function mintMorebasePass() external payable"
 ];
 
-let provider, signer, userAddress, pulseContract;
+let provider, signer, userAddress;
 
 function appendBuilderCode(rawCalldata) {
   let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
@@ -304,40 +228,30 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-function getTodayUTCString() {
+function getTodayString() {
   const d = new Date();
   return `${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
 }
 
-function getYesterdayUTCString() {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - 1);
-  return `${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
-}
-
-function updateUI() {
+function updateStreakDisplay() {
   if (!userAddress) return;
-
-  const today = getTodayUTCString();
-  const yesterday = getYesterdayUTCString();
-
-  const lastCheckIn = localStorage.getItem(`mb_last_${userAddress}`);
-  let currentStreak = parseInt(localStorage.getItem(`mb_current_${userAddress}`) || "0");
-  let totalCheckIns = parseInt(localStorage.getItem(`mb_total_${userAddress}`) || "0");
-
-  if (lastCheckIn && lastCheckIn !== today && lastCheckIn !== yesterday) {
-    currentStreak = 0;
-    localStorage.setItem(`mb_current_${userAddress}`, "0");
-  }
+  const today = getTodayString();
+  
+  let currentStreak = parseInt(localStorage.getItem(`streak_curr_${userAddress}`) || "0");
+  let totalCheckIns = parseInt(localStorage.getItem(`streak_tot_${userAddress}`) || "0");
+  let lastCheck = localStorage.getItem(`streak_last_${userAddress}`);
 
   document.getElementById("currentStreakNum").textContent = currentStreak;
   document.getElementById("totalStreakNum").textContent = totalCheckIns;
 
   const btn = document.getElementById("checkInBtn");
-  btn.disabled = (lastCheckIn === today);
-  btn.innerHTML = (lastCheckIn === today) 
-    ? `<span>Already Checked In Today ☀️</span>` 
-    : `<span>GM Check-in ☀️</span>`;
+  if (lastCheck === today) {
+    btn.disabled = true;
+    btn.textContent = "Already Checked In Today ☀️";
+  } else {
+    btn.disabled = false;
+    btn.textContent = "GM Check-in ☀️";
+  }
 }
 
 function startUTCTimer() {
@@ -356,7 +270,7 @@ function startUTCTimer() {
 }
 
 async function connectWallet() {
-  if (!window.ethereum) return alert("Install Web3 wallet!");
+  if (!window.ethereum) return alert("Install Web3 Wallet!");
 
   try {
     const currentChain = await window.ethereum.request({ method: "eth_chainId" });
@@ -372,7 +286,6 @@ async function connectWallet() {
 
     provider = new ethers.BrowserProvider(window.ethereum);
     signer = await provider.getSigner();
-    pulseContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
     document.getElementById("connectBtn").textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
     document.getElementById("connectBtn").classList.add("connected");
@@ -381,59 +294,54 @@ async function connectWallet() {
     document.getElementById("walletStreakContainer").classList.remove("hidden");
 
     document.getElementById("postMsgBtn").disabled = false;
-    document.getElementById("playGameBtn").disabled = false;
     document.getElementById("mintNftBtn").disabled = false;
-    document.getElementById("createNftBtn").disabled = false;
-    document.getElementById("deployUserContractBtn").disabled = false;
 
-    updateUI();
+    updateStreakDisplay();
 
   } catch (err) {
     console.error(err);
-    alert("Wallet connection failed.");
   }
 }
 
-// GM CHECK-IN
 document.getElementById("checkInBtn").addEventListener("click", async () => {
   const btn = document.getElementById("checkInBtn");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
+  btn.textContent = "Checking in...";
 
   try {
-    const baseCalldata = pulseContract.interface.encodeFunctionData("checkIn");
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    const baseCalldata = contract.interface.encodeFunctionData("checkIn");
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: 0,
-      gasLimit: 120000
+      value: 0
     });
     await tx.wait();
 
-    let currentStreak = parseInt(localStorage.getItem(`mb_current_${userAddress}`) || "0") + 1;
-    let totalCheckIns = parseInt(localStorage.getItem(`mb_total_${userAddress}`) || "0") + 1;
+    let curr = parseInt(localStorage.getItem(`streak_curr_${userAddress}`) || "0") + 1;
+    let tot = parseInt(localStorage.getItem(`streak_tot_${userAddress}`) || "0") + 1;
 
-    localStorage.setItem(`mb_current_${userAddress}`, currentStreak);
-    localStorage.setItem(`mb_total_${userAddress}`, totalCheckIns);
-    localStorage.setItem(`mb_last_${userAddress}`, getTodayUTCString());
+    localStorage.setItem(`streak_curr_${userAddress}`, curr);
+    localStorage.setItem(`streak_tot_${userAddress}`, tot);
+    localStorage.setItem(`streak_last_${userAddress}`, getTodayString());
 
-    showStatus("gmStatus", "GM Checked-in successfully! 🎉", "success");
-    updateUI();
+    showStatus("gmStatus", "GM Success! 🎉", "success");
+    updateStreakDisplay();
   } catch (err) {
-    showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
-    updateUI();
+    showStatus("gmStatus", "Failed: " + (err.reason || err.message), "error");
+    updateStreakDisplay();
   }
 });
 
-// OTHER FUNCTIONS
 document.getElementById("postMsgBtn").addEventListener("click", async () => {
   const msg = document.getElementById("msgInput").value;
   if (!msg) return;
   try {
-    const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
-    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata), value: 0 });
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    const baseCalldata = contract.interface.encodeFunctionData("postMessage", [msg]);
+    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata) });
     await tx.wait();
     showStatus("msgStatus", "Message posted!", "success");
   } catch (err) { showStatus("msgStatus", "Failed", "error"); }
@@ -441,27 +349,19 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
 
 document.getElementById("mintNftBtn").addEventListener("click", async () => {
   try {
-    const baseCalldata = pulseContract.interface.encodeFunctionData("mintMorebasePass");
-    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata), value: 0 });
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    const baseCalldata = contract.interface.encodeFunctionData("mintMorebasePass");
+    const tx = await signer.sendTransaction({ to: CONTRACT_ADDRESS, data: appendBuilderCode(baseCalldata) });
     await tx.wait();
     showStatus("mintStatus", "NFT Minted!", "success");
   } catch (err) { showStatus("mintStatus", "Failed", "error"); }
-});
-
-document.getElementById("deployUserContractBtn").addEventListener("click", async () => {
-  try {
-    const rawBytecode = "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea26469706673582212204c3d00000000000000000000000000000000000000000000000000000000000064736f6c63430008140033";
-    const tx = await signer.sendTransaction({ data: appendBuilderCode(rawBytecode), value: 0 });
-    await tx.wait();
-    showStatus("deployStatus", "Contract Deployed!", "success");
-  } catch (err) { showStatus("deployStatus", "Failed", "error"); }
 });
 
 function showStatus(elId, message, type) {
   const el = document.getElementById(elId);
   if (!el) return;
   el.innerHTML = `<div class="status-msg ${type}">${message}</div>`;
-  setTimeout(() => { el.innerHTML = ""; }, 5000);
+  setTimeout(() => { el.innerHTML = ""; }, 4000);
 }
 </script>
 </body>
