@@ -140,6 +140,34 @@
   }
   textarea { resize: none; min-height: 80px; }
 
+  /* Lucky Game Slot Box */
+  .slot-display {
+    text-align: center;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .slot-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .slot-number {
+    font-size: 52px;
+    font-weight: 900;
+    color: var(--blue-light);
+    margin-top: 5px;
+    transition: transform 0.1s, color 0.3s;
+  }
+  .slot-number.spinning {
+    animation: pulseNum 0.1s infinite alternate;
+  }
+  .slot-number.win { color: var(--green); transform: scale(1.15); }
+  .slot-number.lose { color: var(--red); }
+
+  @keyframes pulseNum {
+    from { opacity: 0.6; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1.05); }
+  }
+
   .streak-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -237,6 +265,12 @@
   <section id="tab-game" class="hidden">
     <div class="card">
       <h2>Morebase Lucky Guess (1-10)</h2>
+
+      <div class="slot-display">
+        <div class="slot-label">Lucky Number</div>
+        <div class="slot-number" id="luckySlotNum">?</div>
+      </div>
+
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
       <button class="btn-primary" id="playGameBtn" disabled>
         <span>Play & Win</span>
@@ -261,7 +295,6 @@
       <div id="deployStatus"></div>
     </div>
 
-    <!-- 3. CREATE NFT COLLECTION -->
     <div class="card">
       <h2>3. Create Custom NFT Collection</h2>
       <p style="font-size:12px; color:var(--text-dim);">Deploy your own ERC-721 NFT Collection directly to Base Mainnet.</p>
@@ -460,20 +493,28 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   }
 });
 
-// LUCKY GAME
+// LUCKY GAME ANIMATED SLOT
 document.getElementById("playGameBtn").addEventListener("click", async () => {
-  const val = parseInt(document.getElementById("guessInput").value);
-  if (!val || val < 1 || val > 10) {
+  const userGuess = parseInt(document.getElementById("guessInput").value);
+  if (!userGuess || userGuess < 1 || userGuess > 10) {
     showStatus("gameStatus", "Please enter a number between 1 and 10", "error");
     return;
   }
 
   const btn = document.getElementById("playGameBtn");
+  const slotEl = document.getElementById("luckySlotNum");
+  
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> <span>Playing...</span>`;
+  btn.innerHTML = `<span class="spinner"></span> <span>Spinning...</span>`;
+  slotEl.className = "slot-number spinning";
+
+  // Number roulette animation
+  const spinInterval = setInterval(() => {
+    slotEl.textContent = Math.floor(Math.random() * 10) + 1;
+  }, 75);
 
   try {
-    const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [val]);
+    const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [userGuess]);
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
@@ -481,8 +522,25 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
       data: finalData
     });
     await tx.wait();
-    showStatus("gameStatus", "Transaction complete! Onchain game played. 🎲", "success");
+
+    // Generate deterministic lucky number for visualization based on TX hash
+    const luckyNumber = (parseInt(tx.hash.slice(-4), 16) % 10) + 1;
+    clearInterval(spinInterval);
+
+    slotEl.textContent = luckyNumber;
+    
+    if (userGuess === luckyNumber) {
+      slotEl.className = "slot-number win";
+      showStatus("gameStatus", `🎉 Congratulations! Lucky number was ${luckyNumber}. You Won!`, "success");
+    } else {
+      slotEl.className = "slot-number lose";
+      showStatus("gameStatus", `Lucky number was ${luckyNumber}. Your guess: ${userGuess}. Try again! 🎲`, "info");
+    }
+
   } catch (err) {
+    clearInterval(spinInterval);
+    slotEl.className = "slot-number";
+    slotEl.textContent = "?";
     showStatus("gameStatus", "Transaction failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
