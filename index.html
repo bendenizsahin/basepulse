@@ -126,7 +126,20 @@
   }
   textarea { resize: none; min-height: 80px; }
 
-  .streak-num { font-size: 52px; font-weight: 800; text-align: center; color: var(--blue-light); margin: 6px 0; }
+  .streak-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 14px 0;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .streak-box { text-align: center; }
+  .streak-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .streak-num { font-size: 40px; font-weight: 800; color: var(--blue-light); margin-top: 4px; }
+
   .timer-box { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
   .timer-box span { color: var(--text); font-weight: 700; }
 
@@ -173,7 +186,6 @@
     margin-top: 10px;
   }
   .guide-box a { color: var(--blue-light); text-decoration: none; font-weight: 600; }
-  .guide-box a:hover { text-decoration: underline; }
 
   .status-msg { text-align: center; font-size: 12px; padding: 8px; border-radius: 8px; margin-top: 10px; word-break: break-all; }
   .status-msg.info { background: rgba(76,139,255,0.1); color: var(--blue-light); }
@@ -200,7 +212,25 @@
   <section id="tab-gm">
     <div class="card">
       <h2>Daily GM Check-in</h2>
-      <div class="streak-num" id="streakNum">0</div>
+      
+      <!-- Cüzdan Bağlı Değilse Gösterilecek Kısım -->
+      <div id="noWalletStreak" style="text-align: center; padding: 30px 0; color: var(--text-dim); font-size: 14px;">
+        🔒 Connect wallet to view your GM streaks
+      </div>
+
+      <!-- Cüzdan Bağlanınca Açılacak Kısım -->
+      <div id="walletStreakContainer" class="streak-container hidden">
+        <div class="streak-box">
+          <div class="streak-label">Current Streak</div>
+          <div class="streak-num" id="currentStreakNum">0</div>
+        </div>
+        <div style="width: 1px; height: 40px; background: var(--border);"></div>
+        <div class="streak-box">
+          <div class="streak-label">Total Check-ins</div>
+          <div class="streak-num" id="totalStreakNum" style="color: var(--text);">0</div>
+        </div>
+      </div>
+
       <div class="timer-box">Resets in: <span id="utcTimer">--:--:--</span> (UTC 00:00)</div>
       <button class="btn-primary" id="checkInBtn" disabled><span>Connect Wallet First</span></button>
       <div id="gmStatus"></div>
@@ -212,7 +242,6 @@
     <div class="card">
       <h2>Onchain Wall</h2>
       <textarea id="msgInput" maxlength="200" placeholder="Write onchain message..."></textarea>
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Micro fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="postMsgBtn" disabled>
         <span id="postMsgBtnText">Post Message</span>
       </button>
@@ -228,7 +257,6 @@
         <div class="bingo-number" id="bingoNum">?</div>
       </div>
       <input type="number" id="guessInput" min="1" max="10" placeholder="Enter number (1 to 10)">
-      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Play fee processed via Morebase smart contract.</div>
       <button class="btn-primary" id="playGameBtn" disabled>
         <span id="playGameBtnText">Play & Win</span>
       </button>
@@ -241,7 +269,7 @@
     <div class="card">
       <h2>1. Mint Morebase Pass NFT</h2>
       <p style="font-size:12px; color:var(--text-dim);">Mint your official Morebase Pass directly on Base Mainnet.</p>
-      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass (0.000001 ETH)</span></button>
+      <button class="btn-primary" id="mintNftBtn" disabled><span>Mint Morebase Pass</span></button>
       <div id="mintStatus"></div>
     </div>
 
@@ -280,22 +308,17 @@
 const CONTRACT_ADDRESS = "0x2D6Dfe8C0d86cc1501A1c85af161b4DDe19Fe0eD"; 
 const CONFIG = { chainIdHex: "0x2105" }; // Base Mainnet (8453)
 
-// Base Builder Code (bc_sirk81a6) Hex Dizgisi (0x öneki olmadan)
 const BUILDER_CODE_HEX = "62635f7369726b383161360080218021802180218021802180218021";
 
 const CONTRACT_ABI = [
   "function checkIn() external payable",
   "function postMessage(string calldata _message) external payable",
   "function playGame(uint8 _guess) external payable returns (bool won)",
-  "function mintMorebasePass() external payable",
-  "function microFee() view returns (uint256)",
-  "function nftMintFee() view returns (uint256)"
+  "function mintMorebasePass() external payable"
 ];
 
 let provider, signer, userAddress, pulseContract;
-let localStreak = parseInt(localStorage.getItem("morebase_streak") || "0");
 
-// Calldata sonuna Builder Code'u güvenli şekilde ekleyen yardımcı fonksiyon
 function appendBuilderCode(rawCalldata) {
   let cleanData = rawCalldata.startsWith("0x") ? rawCalldata.slice(2) : rawCalldata;
   return "0x" + cleanData + BUILDER_CODE_HEX;
@@ -303,7 +326,6 @@ function appendBuilderCode(rawCalldata) {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("connectBtn").addEventListener("click", connectWallet);
-  document.getElementById("streakNum").textContent = localStreak;
   startUTCTimer();
 
   document.querySelectorAll(".tab").forEach(tab => {
@@ -321,12 +343,32 @@ function getTodayUTCString() {
   return `${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
 }
 
-function checkDailyGMStatus() {
-  if (!userAddress) return;
-  const today = getTodayUTCString();
-  const lastCheckIn = localStorage.getItem(`morebase_last_checkin_${userAddress}`);
-  const btn = document.getElementById("checkInBtn");
+function getYesterdayUTCString() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()+1}-${d.getUTCDate()}`;
+}
 
+function updateStreakDisplay() {
+  if (!userAddress) return;
+
+  const today = getTodayUTCString();
+  const yesterday = getYesterdayUTCString();
+
+  const lastCheckIn = localStorage.getItem(`morebase_last_date_${userAddress}`);
+  let currentStreak = parseInt(localStorage.getItem(`morebase_current_streak_${userAddress}`) || "0");
+  let totalCheckIns = parseInt(localStorage.getItem(`morebase_total_streak_${userAddress}`) || "0");
+
+  // Streak Bozulma Kontrolü
+  if (lastCheckIn && lastCheckIn !== today && lastCheckIn !== yesterday) {
+    currentStreak = 0; // Bir gün atlandıysa aktif streak sıfırlanır
+    localStorage.setItem(`morebase_current_streak_${userAddress}`, "0");
+  }
+
+  document.getElementById("currentStreakNum").textContent = currentStreak;
+  document.getElementById("totalStreakNum").textContent = totalCheckIns;
+
+  const btn = document.getElementById("checkInBtn");
   if (lastCheckIn === today) {
     btn.disabled = true;
     btn.innerHTML = `<span>Already Checked In Today ☀️</span>`;
@@ -350,7 +392,7 @@ function startUTCTimer() {
     document.getElementById("utcTimer").textContent = `${hours}:${minutes}:${seconds}`;
 
     if (hours === "00" && minutes === "00" && seconds === "00") {
-      checkDailyGMStatus();
+      updateStreakDisplay();
     }
   }, 1000);
 }
@@ -381,13 +423,17 @@ async function connectWallet() {
     cb.textContent = shortAddr;
     cb.classList.add("connected");
 
+    // UI Elementlerini Aç
+    document.getElementById("noWalletStreak").classList.add("hidden");
+    document.getElementById("walletStreakContainer").classList.remove("hidden");
+
     document.getElementById("postMsgBtn").disabled = false;
     document.getElementById("playGameBtn").disabled = false;
     document.getElementById("mintNftBtn").disabled = false;
     document.getElementById("createNftBtn").disabled = false;
     document.getElementById("deployUserContractBtn").disabled = false;
 
-    checkDailyGMStatus();
+    updateStreakDisplay();
 
   } catch (err) {
     console.error(err);
@@ -401,54 +447,46 @@ document.getElementById("checkInBtn").addEventListener("click", async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Checking in...</span>`;
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
     const baseCalldata = pulseContract.interface.encodeFunctionData("checkIn");
     const finalData = appendBuilderCode(baseCalldata);
 
+    // Value tamamen 0 yapıldı
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
+      value: 0,
       gasLimit: 120000
     });
     await tx.wait();
 
-    localStreak += 1;
-    localStorage.setItem("morebase_streak", localStreak);
-    localStorage.setItem(`morebase_last_checkin_${userAddress}`, getTodayUTCString());
+    let currentStreak = parseInt(localStorage.getItem(`morebase_current_streak_${userAddress}`) || "0") + 1;
+    let totalCheckIns = parseInt(localStorage.getItem(`morebase_total_streak_${userAddress}`) || "0") + 1;
+
+    localStorage.setItem(`morebase_current_streak_${userAddress}`, currentStreak);
+    localStorage.setItem(`morebase_total_streak_${userAddress}`, totalCheckIns);
+    localStorage.setItem(`morebase_last_date_${userAddress}`, getTodayUTCString());
     
-    document.getElementById("streakNum").textContent = localStreak;
-    showStatus("gmStatus", "GM Checked-in on contract successfully! 🎉", "success");
-    checkDailyGMStatus();
+    showStatus("gmStatus", "GM Checked-in successfully! 🎉", "success");
+    updateStreakDisplay();
   } catch (err) {
     showStatus("gmStatus", "Transaction failed: " + (err.reason || err.message), "error");
-    checkDailyGMStatus();
+    updateStreakDisplay();
   }
 });
 
-// MINT MOREBASE PASS NFT (0.000001 ETH)
+// MINT MOREBASE PASS NFT
 document.getElementById("mintNftBtn").addEventListener("click", async () => {
   const btn = document.getElementById("mintNftBtn");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> <span>Minting Pass...</span>`;
   try {
-    let fee = ethers.parseEther("0.000001");
-    try {
-      const contractFee = await pulseContract.nftMintFee();
-      if (contractFee && contractFee < fee) {
-        fee = contractFee;
-      }
-    } catch(e) {}
-
     const baseCalldata = pulseContract.interface.encodeFunctionData("mintMorebasePass");
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
+      value: 0,
       gasLimit: 150000
     });
     await tx.wait();
@@ -457,7 +495,7 @@ document.getElementById("mintNftBtn").addEventListener("click", async () => {
     showStatus("mintStatus", "Mint failed: " + (err.reason || err.message), "error");
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<span>Mint Morebase Pass (0.000001 ETH)</span>`;
+    btn.innerHTML = `<span>Mint Morebase Pass</span>`;
   }
 });
 
@@ -472,7 +510,8 @@ document.getElementById("createNftBtn").addEventListener("click", async () => {
     const finalBytecode = appendBuilderCode(rawBytecode);
 
     const tx = await signer.sendTransaction({
-      data: finalBytecode
+      data: finalBytecode,
+      value: 0
     });
     await tx.wait();
     
@@ -496,7 +535,8 @@ document.getElementById("deployUserContractBtn").addEventListener("click", async
     const finalBytecode = appendBuilderCode(rawBytecode);
 
     const tx = await signer.sendTransaction({
-      data: finalBytecode
+      data: finalBytecode,
+      value: 0
     });
     await tx.wait();
     
@@ -518,9 +558,6 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
   btn.innerHTML = `<span class="spinner"></span> <span>Approval...</span>`;
 
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-    
     const baseCalldata = pulseContract.interface.encodeFunctionData("postMessage", [msg]);
     const finalData = appendBuilderCode(baseCalldata);
 
@@ -528,7 +565,7 @@ document.getElementById("postMsgBtn").addEventListener("click", async () => {
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
+      value: 0,
       gasLimit: 120000
     });
     await tx.wait();
@@ -557,16 +594,13 @@ document.getElementById("playGameBtn").addEventListener("click", async () => {
   }, 60);
 
   try {
-    let fee;
-    try { fee = await pulseContract.microFee(); } catch(e) { fee = ethers.parseEther("0.00001"); }
-
     const baseCalldata = pulseContract.interface.encodeFunctionData("playGame", [num]);
     const finalData = appendBuilderCode(baseCalldata);
 
     const tx = await signer.sendTransaction({
       to: CONTRACT_ADDRESS,
       data: finalData,
-      value: fee,
+      value: 0,
       gasLimit: 120000
     });
     await tx.wait();
